@@ -1,8 +1,7 @@
 """
 GEPAS → ICS Generator
-Cerca gli scioperi "Istruzione e Ricerca" tramite ricerca web
-e genera un file .ics pubblicato su GitHub Pages.
-Outlook sottoscrive l'URL e si aggiorna automaticamente.
+Usa il backend reale di GEPAS (asspa-api.perlapa.gov.it)
+per leggere gli scioperi "Istruzione e Ricerca" e generare un .ics.
 """
 
 import os
@@ -15,31 +14,51 @@ from datetime import datetime, timedelta
 OUTPUT_FILE     = "docs/scioperi.ics"
 GEPAS_URL       = "https://crusc-gepas.perlapa.gov.it/home"
 COMPARTO_TARGET = "istruzione e ricerca"
-
-# ── API DIRETTE GEPAS ──────────────────────────
-# Il backend del cruscotto espone questi endpoint REST
-GEPAS_API_URLS = [
-    "https://crusc-gepas.perlapa.gov.it/api/scioperi?comparto=ISTRUZIONE_E_RICERCA&size=100",
-    "https://crusc-gepas.perlapa.gov.it/api/scioperi?size=200",
-    "https://crusc-gepas.perlapa.gov.it/api/proclamazioni?size=200",
-    "https://crusc-gepas.perlapa.gov.it/api/v1/scioperi",
-    "https://crusc-gepas.perlapa.gov.it/rest/scioperi",
-]
+BASE_API        = "https://asspa-api.perlapa.gov.it/api/Public"
 
 HEADERS = {
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "it-IT,it;q=0.9",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Referer": "https://crusc-gepas.perlapa.gov.it/home",
+    "Referer": "https://crusc-gepas.perlapa.gov.it/",
     "Origin": "https://crusc-gepas.perlapa.gov.it",
-    "X-Requested-With": "XMLHttpRequest",
 }
 
 
-# ── 1. PROVA API DIRETTE ───────────────────────
-def prova_api_dirette():
-    print("[API] Tentativo endpoint GEPAS diretti...")
-    for url in GEPAS_API_URLS:
+# ── 1. SCOPRI ENDPOINT API ─────────────────────
+def scopri_endpoint():
+    """Prova i possibili endpoint del backend asspa-api."""
+    candidati = [
+        f"{BASE_API}/Sciopero",
+        f"{BASE_API}/Sciopero/Lista",
+        f"{BASE_API}/Sciopero/Search",
+        f"{BASE_API}/Scioperi",
+        f"{BASE_API}/Adempimento/Sciopero",
+        f"{BASE_API}/Adempimento/ListaScioperi",
+        f"{BASE_API}/Adempimento/Scioperi",
+        f"{BASE_API}/Proclamazione",
+        f"{BASE_API}/Proclamazione/Lista",
+        f"{BASE_API}/Adempimento/Lista",
+        f"{BASE_API}/Adempimento",
+        f"{BASE_API}/Cruscotto",
+        f"{BASE_API}/Cruscotto/Scioperi",
+        f"{BASE_API}/Cruscotto/Lista",
+    ]
+
+    # Prova prima a ottenere la lista delle "sigle" che sappiamo funziona
+    # per capire la struttura dell'API
+    print("[API] Analisi endpoint ListaSigle...")
+    try:
+        resp = requests.get(f"{BASE_API}/Adempimento/ListaSigle", headers=HEADERS, timeout=15)
+        print(f"[API] ListaSigle: {resp.status_code}")
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"[API] Struttura ListaSigle: {json.dumps(data)[:300]}")
+    except Exception as e:
+        print(f"[API] Errore ListaSigle: {e}")
+
+    # Prova tutti i candidati
+    for url in candidati:
         try:
             resp = requests.get(url, headers=HEADERS, timeout=15)
             print(f"[API] {resp.status_code} – {url}")
@@ -47,27 +66,17 @@ def prova_api_dirette():
                 ct = resp.headers.get("content-type", "")
                 if "json" in ct:
                     data = resp.json()
+                    print(f"[API] ✅ JSON da {url}: {json.dumps(data)[:200]}")
                     records = estrai_lista(data)
                     if records:
-                        print(f"[API] ✅ {len(records)} record da {url}")
                         return filtra_istruzione(records)
         except Exception as e:
-            print(f"[API] Errore: {e}")
+            print(f"[API] Errore {url}: {e}")
+
     return []
 
 
-def estrai_lista(data):
-    if isinstance(data, list) and data:
-        return data
-    if isinstance(data, dict):
-        for k in ["content", "data", "items", "results", "scioperi", "proclamazioni", "list"]:
-            v = data.get(k)
-            if isinstance(v, list) and v:
-                return v
-    return []
-
-
-# ── 2. PLAYWRIGHT CON INTERCETTAZIONE AVANZATA ─
+# ── 2. PLAYWRIGHT CON URL NOTI ─────────────────
 def prova_playwright():
     try:
         from playwright.sync_api import sync_playwright
@@ -76,82 +85,77 @@ def prova_playwright():
         return []
 
     api_data = []
-    api_urls_visti = []
+    tutti_url = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=[
-            "--no-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox", "--disable-dev-shm-usage",
         ])
         context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             locale="it-IT",
-            viewport={"width": 1280, "height": 800},
         )
+        page = context.new_page()
 
-        # Intercetta tutte le risposte di rete
         def handle_response(response):
             url = response.url
+            tutti_url.append(f"{response.status} {url}")
             if response.status != 200:
                 return
             ct = response.headers.get("content-type", "")
             if "json" not in ct:
                 return
-            skip = ["googleapis", "gstatic", "analytics", "favicon", "matomo",
-                    "cookie", "config", "version", "i18n", "translation"]
-            if any(s in url.lower() for s in skip):
+            skip = ["googleapis", "gstatic", "analytics", "matomo", "cookie",
+                    "i18n", "translation", "ListaSigle"]
+            if any(s in url for s in skip):
+                # Stampa comunque per debug
+                try:
+                    data = response.json()
+                    print(f"[PW] (skip) {url[:80]}: {json.dumps(data)[:150]}")
+                except Exception:
+                    pass
                 return
             try:
                 data = response.json()
+                print(f"[PW] JSON da {url}: {json.dumps(data)[:200]}")
                 records = estrai_lista(data)
-                if records and len(records) >= 1:
-                    print(f"[PW] JSON ({len(records)} record) da: {url}")
+                if records:
                     api_data.extend(records)
-                    api_urls_visti.append(url)
-                elif isinstance(data, dict) and data:
-                    # Potrebbe essere un singolo sciopero
-                    if "dataInizio" in data or "data_inizio" in data or "dataSciopero" in data:
-                        api_data.append(data)
+                elif isinstance(data, dict) and any(
+                    k in data for k in ["dataInizio", "data_inizio", "dataSciopero"]
+                ):
+                    api_data.append(data)
             except Exception:
                 pass
 
-        page = context.new_page()
         page.on("response", handle_response)
 
-        print("[PW] Apertura pagina GEPAS...")
+        print("[PW] Apertura GEPAS...")
         try:
             page.goto(GEPAS_URL, wait_until="networkidle", timeout=90000)
         except Exception as e:
-            print(f"[PW] Timeout iniziale: {e}")
+            print(f"[PW] Timeout: {e}")
 
         page.wait_for_timeout(8000)
 
-        # Scrolla la pagina
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(3000)
-        page.evaluate("window.scrollTo(0, 0)")
-        page.wait_for_timeout(2000)
-
-        # Cerca e clicca eventuale filtro "Istruzione"
-        selectors_filtro = [
-            "text=Istruzione",
-            "text=ISTRUZIONE",
-            "[value*='istruzione' i]",
-            "option[value*='istruzione' i]",
-            "mat-option:has-text('Istruzione')",
-            ".filter-comparto",
-        ]
-        for sel in selectors_filtro:
+        # Tenta navigazione diretta alla sezione scioperi tramite URL hash
+        for path in ["#/scioperi", "#/istruzione", "?comparto=istruzione", "/scioperi"]:
             try:
-                el = page.query_selector(sel)
-                if el:
-                    el.click()
-                    page.wait_for_timeout(4000)
-                    print(f"[PW] Cliccato filtro: {sel}")
-                    break
+                page.goto(f"https://crusc-gepas.perlapa.gov.it{path}",
+                          wait_until="networkidle", timeout=30000)
+                page.wait_for_timeout(4000)
             except Exception:
                 pass
+
+        # Scrolla
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(3000)
+
+        # Stampa tutti gli URL visti
+        print(f"[PW] Tutti gli URL intercettati ({len(tutti_url)}):")
+        for u in tutti_url:
+            if "asspa-api" in u or "gepas" in u.lower():
+                print(f"  {u}")
 
         # Salva debug
         os.makedirs("docs", exist_ok=True)
@@ -159,43 +163,61 @@ def prova_playwright():
             page.screenshot(path="docs/debug_screenshot.png", full_page=True)
             with open("docs/debug_page.html", "w", encoding="utf-8") as f:
                 f.write(page.content())
-            print("[PW] Debug salvato in docs/")
-        except Exception as e:
-            print(f"[PW] Errore salvataggio debug: {e}")
 
-        # Log URL intercettati
-        if api_urls_visti:
-            print(f"[PW] URL API intercettati: {api_urls_visti}")
-        else:
-            print("[PW] Nessun URL API intercettato")
-            # Prova a chiamare direttamente gli URL che il browser avrebbe chiamato
-            # basandosi sugli script JS della pagina
-            try:
-                scripts = page.query_selector_all("script[src]")
-                for s in scripts[:5]:
-                    src = s.get_attribute("src")
-                    if src:
-                        print(f"[PW] Script trovato: {src}")
-            except Exception:
-                pass
+            # Salva anche tutti gli URL per analisi
+            with open("docs/debug_urls.txt", "w", encoding="utf-8") as f:
+                f.write("\n".join(tutti_url))
+            print("[PW] Debug salvato")
+        except Exception as e:
+            print(f"[PW] Errore debug: {e}")
 
         browser.close()
+
+    # Ora prova a chiamare direttamente tutti gli URL asspa-api trovati
+    asspa_urls = [u.split(" ", 1)[1] for u in tutti_url
+                  if "asspa-api" in u and u.startswith("200")]
+    print(f"[PW] URL asspa-api con 200: {asspa_urls}")
+
+    for url in asspa_urls:
+        if "ListaSigle" in url:
+            continue
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
+                data = resp.json()
+                print(f"[PW→API] Dati da {url}: {json.dumps(data)[:300]}")
+                records = estrai_lista(data)
+                if records:
+                    api_data.extend(records)
+        except Exception as e:
+            print(f"[PW→API] Errore {url}: {e}")
 
     return filtra_istruzione(api_data) if api_data else []
 
 
-# ── 3. FILTRAGGIO E PARSING ────────────────────
+# ── 3. UTILITIES ───────────────────────────────
+def estrai_lista(data):
+    if isinstance(data, list) and data:
+        return data
+    if isinstance(data, dict):
+        for k in ["content", "data", "items", "results", "scioperi",
+                  "proclamazioni", "list", "rows", "elementi"]:
+            v = data.get(k)
+            if isinstance(v, list) and v:
+                return v
+    return []
+
+
 def filtra_istruzione(records):
     risultati = []
     for item in records:
+        testo = json.dumps(item, ensure_ascii=False).lower()
         comparto = str(
             item.get("comparto") or item.get("compartoArea") or
             item.get("settore") or item.get("area") or
-            item.get("compartoDescrizione") or item.get("tipoComparto") or ""
+            item.get("compartoDescrizione") or ""
         ).lower()
-        # Accetta anche se comparto è vuoto ma c'è "istruzione" altrove nel record
-        testo_record = json.dumps(item, ensure_ascii=False).lower()
-        if COMPARTO_TARGET in comparto or (COMPARTO_TARGET in testo_record and comparto == ""):
+        if COMPARTO_TARGET in comparto or COMPARTO_TARGET in testo:
             s = parse_item(item)
             if s:
                 risultati.append(s)
@@ -221,11 +243,13 @@ def parse_item(item):
             item.get("organizzazioni") or item.get("soggettoProclamante") or ""
         )
         if isinstance(sindacato, list):
-            sindacato = ", ".join(str(x.get("nome", x) if isinstance(x, dict) else x) for x in sindacato)
+            sindacato = ", ".join(
+                str(x.get("nome", x) if isinstance(x, dict) else x) for x in sindacato
+            )
 
         return {
             "uid":         str(item.get("id") or item.get("uid") or uuid.uuid4()),
-            "titolo":      item.get("descrizione") or item.get("titolo") or item.get("oggetto") or "Sciopero Istruzione e Ricerca",
+            "titolo":      item.get("descrizione") or item.get("titolo") or "Sciopero Istruzione e Ricerca",
             "data_inizio": data_inizio,
             "data_fine":   data_fine,
             "sindacato":   str(sindacato),
@@ -273,14 +297,15 @@ def genera_ics(scioperi):
         data_inizio   = s["data_inizio"]
         data_fine_raw = s.get("data_fine") or data_inizio
         try:
-            data_fine_ics = (datetime.strptime(data_fine_raw, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
+            data_fine_ics = (
+                datetime.strptime(data_fine_raw, "%Y%m%d") + timedelta(days=1)
+            ).strftime("%Y%m%d")
         except Exception:
             data_fine_ics = data_inizio
 
         sindacato = (s.get("sindacato") or "").strip()
         note      = (s.get("note") or "").strip()
-
-        soggetto = "SCIOPERO - Istruzione e Ricerca"
+        soggetto  = "SCIOPERO - Istruzione e Ricerca"
         if sindacato:
             soggetto += f" ({sindacato[:60]})"
 
@@ -318,20 +343,20 @@ def main():
 
     scioperi = []
 
-    # Strategia 1: API dirette
-    scioperi = prova_api_dirette()
+    # Strategia 1: endpoint asspa-api diretti
+    scioperi = scopri_endpoint()
     if scioperi:
         print(f"[OK] {len(scioperi)} scioperi via API dirette")
 
     # Strategia 2: Playwright
     if not scioperi:
-        print("[INFO] Avvio Playwright come fallback...")
+        print("[INFO] Avvio Playwright...")
         scioperi = prova_playwright()
         print(f"[OK] {len(scioperi)} scioperi via Playwright")
 
     if not scioperi:
         print("[WARN] Nessuno sciopero trovato.")
-        print("[INFO] Guarda docs/debug_screenshot.png per diagnosticare il problema")
+        print("[INFO] Guarda docs/debug_urls.txt per vedere tutti gli URL intercettati")
 
     os.makedirs("docs", exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
