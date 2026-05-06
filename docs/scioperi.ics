@@ -1,0 +1,11 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//GEPAS Sync//Scioperi Istruzione e Ricerca//IT
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:Scioperi - Istruzione e Ricerca
+X-WR-TIMEZONE:Europe/Rome
+X-WR-CALDESC:Aggiornato automaticamente da https://crusc-gepas.perlapa.gov.it/home
+REFRESH-INTERVAL;VALUE=DURATION:P1D
+X-PUBLISHED-TTL:P1D
+END:VCALENDAR
