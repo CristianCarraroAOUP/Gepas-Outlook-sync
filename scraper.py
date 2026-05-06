@@ -1,284 +1,343 @@
 """
-GEPAS → Outlook Calendar Sync
-Legge gli scioperi "Istruzione e Ricerca" dal Cruscotto GEPAS
-e li aggiunge automaticamente al calendario Outlook via Microsoft Graph API.
+GEPAS → ICS Generator
+Cerca gli scioperi "Istruzione e Ricerca" tramite ricerca web
+e genera un file .ics pubblicato su GitHub Pages.
+Outlook sottoscrive l'URL e si aggiorna automaticamente.
 """
 
 import os
+import re
+import uuid
 import json
 import requests
 from datetime import datetime, timedelta
-from playwright.sync_api import sync_playwright
 
-# ──────────────────────────────────────────────
-# CONFIGURAZIONE (da variabili d'ambiente GitHub)
-# ──────────────────────────────────────────────
-TENANT_ID     = os.environ["MS_TENANT_ID"]
-CLIENT_ID     = os.environ["MS_CLIENT_ID"]
-CLIENT_SECRET = os.environ["MS_CLIENT_SECRET"]
-USER_EMAIL    = os.environ["MS_USER_EMAIL"]   # es. tuonome@outlook.com
-
-GEPAS_URL     = "https://crusc-gepas.perlapa.gov.it/home"
+OUTPUT_FILE     = "docs/scioperi.ics"
+GEPAS_URL       = "https://crusc-gepas.perlapa.gov.it/home"
 COMPARTO_TARGET = "istruzione e ricerca"
 
+# ── API DIRETTE GEPAS ──────────────────────────
+# Il backend del cruscotto espone questi endpoint REST
+GEPAS_API_URLS = [
+    "https://crusc-gepas.perlapa.gov.it/api/scioperi?comparto=ISTRUZIONE_E_RICERCA&size=100",
+    "https://crusc-gepas.perlapa.gov.it/api/scioperi?size=200",
+    "https://crusc-gepas.perlapa.gov.it/api/proclamazioni?size=200",
+    "https://crusc-gepas.perlapa.gov.it/api/v1/scioperi",
+    "https://crusc-gepas.perlapa.gov.it/rest/scioperi",
+]
 
-# ──────────────────────────────────────────────
-# 1. SCRAPING DEL SITO GEPAS
-# ──────────────────────────────────────────────
-def scrape_scioperi():
-    """Apre il sito GEPAS con Playwright e restituisce la lista degli scioperi."""
-    scioperi = []
+HEADERS = {
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "it-IT,it;q=0.9",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Referer": "https://crusc-gepas.perlapa.gov.it/home",
+    "Origin": "https://crusc-gepas.perlapa.gov.it",
+    "X-Requested-With": "XMLHttpRequest",
+}
+
+
+# ── 1. PROVA API DIRETTE ───────────────────────
+def prova_api_dirette():
+    print("[API] Tentativo endpoint GEPAS diretti...")
+    for url in GEPAS_API_URLS:
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            print(f"[API] {resp.status_code} – {url}")
+            if resp.status_code == 200:
+                ct = resp.headers.get("content-type", "")
+                if "json" in ct:
+                    data = resp.json()
+                    records = estrai_lista(data)
+                    if records:
+                        print(f"[API] ✅ {len(records)} record da {url}")
+                        return filtra_istruzione(records)
+        except Exception as e:
+            print(f"[API] Errore: {e}")
+    return []
+
+
+def estrai_lista(data):
+    if isinstance(data, list) and data:
+        return data
+    if isinstance(data, dict):
+        for k in ["content", "data", "items", "results", "scioperi", "proclamazioni", "list"]:
+            v = data.get(k)
+            if isinstance(v, list) and v:
+                return v
+    return []
+
+
+# ── 2. PLAYWRIGHT CON INTERCETTAZIONE AVANZATA ─
+def prova_playwright():
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError:
+        print("[PW] Playwright non disponibile")
+        return []
+
+    api_data = []
+    api_urls_visti = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        browser = p.chromium.launch(headless=True, args=[
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+        ])
+        context = browser.new_context(
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            locale="it-IT",
+            viewport={"width": 1280, "height": 800},
+        )
 
-        print(f"[GEPAS] Apertura pagina: {GEPAS_URL}")
-        page.goto(GEPAS_URL, wait_until="networkidle", timeout=60000)
-
-        # Attendi che la tabella/lista sia caricata
-        page.wait_for_timeout(4000)
-
-        # Intercetta le chiamate API interne del sito
-        # Il sito usa Angular/React e carica i dati da endpoint JSON interni
-        api_data = []
-
+        # Intercetta tutte le risposte di rete
         def handle_response(response):
-            if "scioperi" in response.url.lower() or "gepas" in response.url.lower():
-                try:
-                    data = response.json()
-                    if isinstance(data, list) and len(data) > 0:
-                        api_data.extend(data)
-                except Exception:
-                    pass
+            url = response.url
+            if response.status != 200:
+                return
+            ct = response.headers.get("content-type", "")
+            if "json" not in ct:
+                return
+            skip = ["googleapis", "gstatic", "analytics", "favicon", "matomo",
+                    "cookie", "config", "version", "i18n", "translation"]
+            if any(s in url.lower() for s in skip):
+                return
+            try:
+                data = response.json()
+                records = estrai_lista(data)
+                if records and len(records) >= 1:
+                    print(f"[PW] JSON ({len(records)} record) da: {url}")
+                    api_data.extend(records)
+                    api_urls_visti.append(url)
+                elif isinstance(data, dict) and data:
+                    # Potrebbe essere un singolo sciopero
+                    if "dataInizio" in data or "data_inizio" in data or "dataSciopero" in data:
+                        api_data.append(data)
+            except Exception:
+                pass
 
+        page = context.new_page()
         page.on("response", handle_response)
 
-        # Ricarica per intercettare le chiamate API
-        page.reload(wait_until="networkidle", timeout=60000)
-        page.wait_for_timeout(5000)
+        print("[PW] Apertura pagina GEPAS...")
+        try:
+            page.goto(GEPAS_URL, wait_until="networkidle", timeout=90000)
+        except Exception as e:
+            print(f"[PW] Timeout iniziale: {e}")
 
-        if api_data:
-            print(f"[GEPAS] Dati API intercettati: {len(api_data)} record")
-            for item in api_data:
-                comparto = str(item.get("comparto", "")).lower()
-                if COMPARTO_TARGET in comparto:
-                    scioperi.append(parse_sciopero_api(item))
+        page.wait_for_timeout(8000)
+
+        # Scrolla la pagina
+        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        page.wait_for_timeout(3000)
+        page.evaluate("window.scrollTo(0, 0)")
+        page.wait_for_timeout(2000)
+
+        # Cerca e clicca eventuale filtro "Istruzione"
+        selectors_filtro = [
+            "text=Istruzione",
+            "text=ISTRUZIONE",
+            "[value*='istruzione' i]",
+            "option[value*='istruzione' i]",
+            "mat-option:has-text('Istruzione')",
+            ".filter-comparto",
+        ]
+        for sel in selectors_filtro:
+            try:
+                el = page.query_selector(sel)
+                if el:
+                    el.click()
+                    page.wait_for_timeout(4000)
+                    print(f"[PW] Cliccato filtro: {sel}")
+                    break
+            except Exception:
+                pass
+
+        # Salva debug
+        os.makedirs("docs", exist_ok=True)
+        try:
+            page.screenshot(path="docs/debug_screenshot.png", full_page=True)
+            with open("docs/debug_page.html", "w", encoding="utf-8") as f:
+                f.write(page.content())
+            print("[PW] Debug salvato in docs/")
+        except Exception as e:
+            print(f"[PW] Errore salvataggio debug: {e}")
+
+        # Log URL intercettati
+        if api_urls_visti:
+            print(f"[PW] URL API intercettati: {api_urls_visti}")
         else:
-            # Fallback: parsing DOM della pagina
-            print("[GEPAS] Nessuna API intercettata, parsing DOM...")
-            scioperi = parse_dom(page)
+            print("[PW] Nessun URL API intercettato")
+            # Prova a chiamare direttamente gli URL che il browser avrebbe chiamato
+            # basandosi sugli script JS della pagina
+            try:
+                scripts = page.query_selector_all("script[src]")
+                for s in scripts[:5]:
+                    src = s.get_attribute("src")
+                    if src:
+                        print(f"[PW] Script trovato: {src}")
+            except Exception:
+                pass
 
         browser.close()
 
-    print(f"[GEPAS] Scioperi 'Istruzione e Ricerca' trovati: {len(scioperi)}")
-    return [s for s in scioperi if s is not None]
+    return filtra_istruzione(api_data) if api_data else []
 
 
-def parse_sciopero_api(item):
-    """Converte un record JSON dell'API GEPAS in dizionario normalizzato."""
+# ── 3. FILTRAGGIO E PARSING ────────────────────
+def filtra_istruzione(records):
+    risultati = []
+    for item in records:
+        comparto = str(
+            item.get("comparto") or item.get("compartoArea") or
+            item.get("settore") or item.get("area") or
+            item.get("compartoDescrizione") or item.get("tipoComparto") or ""
+        ).lower()
+        # Accetta anche se comparto è vuoto ma c'è "istruzione" altrove nel record
+        testo_record = json.dumps(item, ensure_ascii=False).lower()
+        if COMPARTO_TARGET in comparto or (COMPARTO_TARGET in testo_record and comparto == ""):
+            s = parse_item(item)
+            if s:
+                risultati.append(s)
+    return risultati
+
+
+def parse_item(item):
     try:
+        data_inizio = normalizza_data(
+            item.get("dataInizio") or item.get("data_inizio") or
+            item.get("dataSciopero") or item.get("data") or
+            item.get("startDate") or item.get("dataProclamazione") or ""
+        )
+        data_fine = normalizza_data(
+            item.get("dataFine") or item.get("data_fine") or
+            item.get("dataFineSciopero") or item.get("endDate") or data_inizio
+        )
+        if not data_inizio:
+            return None
+
+        sindacato = (
+            item.get("organizzazione") or item.get("sindacato") or
+            item.get("organizzazioni") or item.get("soggettoProclamante") or ""
+        )
+        if isinstance(sindacato, list):
+            sindacato = ", ".join(str(x.get("nome", x) if isinstance(x, dict) else x) for x in sindacato)
+
         return {
-            "id":          item.get("id") or item.get("uid") or "",
-            "titolo":      item.get("descrizione") or item.get("titolo") or "Sciopero Istruzione e Ricerca",
-            "data_inizio": item.get("dataInizio") or item.get("data_inizio") or "",
-            "data_fine":   item.get("dataFine")   or item.get("data_fine")   or "",
-            "sindacato":   item.get("organizzazione") or item.get("sindacato") or "",
-            "comparto":    item.get("comparto") or "",
-            "note":        item.get("note") or "",
+            "uid":         str(item.get("id") or item.get("uid") or uuid.uuid4()),
+            "titolo":      item.get("descrizione") or item.get("titolo") or item.get("oggetto") or "Sciopero Istruzione e Ricerca",
+            "data_inizio": data_inizio,
+            "data_fine":   data_fine,
+            "sindacato":   str(sindacato),
+            "comparto":    "Istruzione e Ricerca",
+            "note":        str(item.get("note") or item.get("motivazione") or ""),
         }
     except Exception as e:
-        print(f"[WARN] Errore parsing item: {e}")
+        print(f"[WARN] Errore parsing: {e}")
         return None
 
 
-def parse_dom(page):
-    """Parsing fallback: estrae dati direttamente dal DOM della pagina."""
-    scioperi = []
-    try:
-        # Cerca righe della tabella o card contenenti "istruzione"
-        rows = page.query_selector_all("tr, .card, .sciopero-item, [class*='row']")
-        for row in rows:
-            text = row.inner_text().lower()
-            if COMPARTO_TARGET in text:
-                scioperi.append({
-                    "id":          "",
-                    "titolo":      "Sciopero – Istruzione e Ricerca",
-                    "data_inizio": estrai_data_da_testo(row.inner_text()),
-                    "data_fine":   estrai_data_da_testo(row.inner_text()),
-                    "sindacato":   "",
-                    "comparto":    "Istruzione e Ricerca",
-                    "note":        row.inner_text().strip()[:300],
-                })
-    except Exception as e:
-        print(f"[WARN] Errore parsing DOM: {e}")
-    return scioperi
-
-
-def estrai_data_da_testo(testo):
-    """Tenta di estrarre una data in formato DD/MM/YYYY o YYYY-MM-DD dal testo."""
-    import re
-    match = re.search(r"(\d{2})[/\-](\d{2})[/\-](\d{4})", testo)
-    if match:
-        d, m, y = match.groups()
-        return f"{y}-{m}-{d}"
-    match = re.search(r"(\d{4})[/\-](\d{2})[/\-](\d{2})", testo)
-    if match:
-        return match.group(0)
+def normalizza_data(valore):
+    if not valore:
+        return ""
+    valore = str(valore).strip()
+    m = re.match(r"(\d{4})-(\d{2})-(\d{2})", valore)
+    if m:
+        return f"{m.group(1)}{m.group(2)}{m.group(3)}"
+    m = re.match(r"(\d{2})[/\-](\d{2})[/\-](\d{4})", valore)
+    if m:
+        return f"{m.group(3)}{m.group(2)}{m.group(1)}"
+    if re.match(r"^\d{13}$", valore):
+        dt = datetime.utcfromtimestamp(int(valore) / 1000)
+        return dt.strftime("%Y%m%d")
     return ""
 
 
-# ──────────────────────────────────────────────
-# 2. AUTENTICAZIONE MICROSOFT GRAPH
-# ──────────────────────────────────────────────
-def get_access_token():
-    """Ottiene un access token OAuth2 da Microsoft per Graph API."""
-    url = f"https://login.microsoftonline.com/{TENANT_ID}/oauth2/v2.0/token"
-    data = {
-        "grant_type":    "client_credentials",
-        "client_id":     CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "scope":         "https://graph.microsoft.com/.default",
-    }
-    resp = requests.post(url, data=data)
-    resp.raise_for_status()
-    token = resp.json()["access_token"]
-    print("[GRAPH] Access token ottenuto.")
-    return token
+# ── 4. GENERA ICS ──────────────────────────────
+def genera_ics(scioperi):
+    ora = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//GEPAS Sync//Scioperi Istruzione e Ricerca//IT",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:Scioperi - Istruzione e Ricerca",
+        "X-WR-TIMEZONE:Europe/Rome",
+        f"X-WR-CALDESC:Aggiornato automaticamente da {GEPAS_URL}",
+        "REFRESH-INTERVAL;VALUE=DURATION:P1D",
+        "X-PUBLISHED-TTL:P1D",
+    ]
+
+    for s in scioperi:
+        data_inizio   = s["data_inizio"]
+        data_fine_raw = s.get("data_fine") or data_inizio
+        try:
+            data_fine_ics = (datetime.strptime(data_fine_raw, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
+        except Exception:
+            data_fine_ics = data_inizio
+
+        sindacato = (s.get("sindacato") or "").strip()
+        note      = (s.get("note") or "").strip()
+
+        soggetto = "SCIOPERO - Istruzione e Ricerca"
+        if sindacato:
+            soggetto += f" ({sindacato[:60]})"
+
+        descrizione = "Comparto: Istruzione e Ricerca"
+        if sindacato:
+            descrizione += f"\\nSindacato: {sindacato}"
+        if note:
+            descrizione += f"\\nNote: {note[:200]}"
+        descrizione += f"\\n\\nFonte: {GEPAS_URL}"
+
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{s.get('uid', str(uuid.uuid4()))}-gepas@scioperi",
+            f"DTSTAMP:{ora}",
+            f"DTSTART;VALUE=DATE:{data_inizio}",
+            f"DTEND;VALUE=DATE:{data_fine_ics}",
+            f"SUMMARY:{soggetto}",
+            f"DESCRIPTION:{descrizione}",
+            "CATEGORIES:Sciopero",
+            "STATUS:CONFIRMED",
+            "TRANSP:TRANSPARENT",
+            "END:VEVENT",
+        ]
+
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines)
 
 
-# ──────────────────────────────────────────────
-# 3. LETTURA EVENTI GIÀ PRESENTI SU OUTLOOK
-# ──────────────────────────────────────────────
-def get_eventi_outlook(token):
-    """Recupera gli eventi del calendario Outlook dei prossimi 12 mesi."""
-    oggi = datetime.utcnow().strftime("%Y-%m-%dT00:00:00Z")
-    tra_un_anno = (datetime.utcnow() + timedelta(days=365)).strftime("%Y-%m-%dT00:00:00Z")
-
-    url = (
-        f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/calendarView"
-        f"?startDateTime={oggi}&endDateTime={tra_un_anno}"
-        f"&$select=subject,start,end,id"
-        f"&$top=200"
-    )
-    headers = {"Authorization": f"Bearer {token}"}
-    resp = requests.get(url, headers=headers)
-    resp.raise_for_status()
-    eventi = resp.json().get("value", [])
-    print(f"[GRAPH] Eventi già presenti su Outlook: {len(eventi)}")
-    return eventi
-
-
-def evento_gia_presente(sciopero, eventi_outlook):
-    """Controlla se uno sciopero è già presente nel calendario (evita duplicati)."""
-    data_s = sciopero.get("data_inizio", "")[:10]
-    titolo_s = sciopero.get("titolo", "").lower()
-
-    for ev in eventi_outlook:
-        data_ev = ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", ""))[:10]
-        titolo_ev = ev.get("subject", "").lower()
-
-        if data_s == data_ev and ("istruzione" in titolo_ev or "sciopero" in titolo_ev):
-            return True
-    return False
-
-
-# ──────────────────────────────────────────────
-# 4. CREAZIONE EVENTI SU OUTLOOK
-# ──────────────────────────────────────────────
-def crea_evento_outlook(token, sciopero):
-    """Crea un nuovo evento nel calendario Outlook per uno sciopero."""
-    data_inizio = sciopero.get("data_inizio", "")[:10]
-    data_fine   = sciopero.get("data_fine",   "")[:10]
-
-    if not data_inizio:
-        print(f"[SKIP] Data mancante per: {sciopero.get('titolo')}")
-        return False
-
-    # Se data_fine non c'è o è uguale a data_inizio, evento di 1 giorno
-    if not data_fine or data_fine == data_inizio:
-        dt_fine = (datetime.strptime(data_inizio, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
-    else:
-        dt_fine = data_fine
-
-    sindacato = sciopero.get("sindacato", "")
-    note      = sciopero.get("note", "")
-    body_text = f"Comparto: Istruzione e Ricerca\n"
-    if sindacato:
-        body_text += f"Sindacato: {sindacato}\n"
-    if note:
-        body_text += f"\nNote: {note}\n"
-    body_text += f"\nFonte: {GEPAS_URL}"
-
-    evento = {
-        "subject": f"🔴 SCIOPERO – Istruzione e Ricerca" + (f" ({sindacato})" if sindacato else ""),
-        "body": {
-            "contentType": "text",
-            "content": body_text,
-        },
-        # Per eventi tutto il giorno, Graph API vuole "date" (senza orario)
-        # e NON vuole il campo "timeZone"
-        "start": {
-            "date": data_inizio,
-        },
-        "end": {
-            "date": dt_fine,
-        },
-        "isAllDay": True,
-        "showAs": "free",
-        "categories": ["Sciopero"],
-        "importance": "high",
-    }
-
-    url = f"https://graph.microsoft.com/v1.0/users/{USER_EMAIL}/events"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type":  "application/json",
-    }
-    resp = requests.post(url, headers=headers, json=evento)
-
-    if resp.status_code == 201:
-        print(f"[GRAPH] ✅ Evento creato: {evento['subject']} – {data_inizio}")
-        return True
-    else:
-        print(f"[GRAPH] ❌ Errore creazione evento: {resp.status_code} – {resp.text}")
-        return False
-
-
-# ──────────────────────────────────────────────
-# 5. MAIN
-# ──────────────────────────────────────────────
+# ── 5. MAIN ────────────────────────────────────
 def main():
     print("=" * 55)
-    print("  GEPAS → Outlook Calendar Sync")
+    print("  GEPAS → ICS Generator")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 55)
 
-    # Step 1: Scarica scioperi da GEPAS
-    scioperi = scrape_scioperi()
+    scioperi = []
+
+    # Strategia 1: API dirette
+    scioperi = prova_api_dirette()
+    if scioperi:
+        print(f"[OK] {len(scioperi)} scioperi via API dirette")
+
+    # Strategia 2: Playwright
     if not scioperi:
-        print("[INFO] Nessuno sciopero trovato. Fine.")
-        return
+        print("[INFO] Avvio Playwright come fallback...")
+        scioperi = prova_playwright()
+        print(f"[OK] {len(scioperi)} scioperi via Playwright")
 
-    # Step 2: Autenticazione Microsoft
-    token = get_access_token()
+    if not scioperi:
+        print("[WARN] Nessuno sciopero trovato.")
+        print("[INFO] Guarda docs/debug_screenshot.png per diagnosticare il problema")
 
-    # Step 3: Carica eventi già presenti su Outlook
-    eventi_outlook = get_eventi_outlook(token)
+    os.makedirs("docs", exist_ok=True)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        f.write(genera_ics(scioperi))
 
-    # Step 4: Aggiunge solo i nuovi scioperi
-    aggiunti = 0
-    saltati  = 0
-    for sciopero in scioperi:
-        if evento_gia_presente(sciopero, eventi_outlook):
-            print(f"[SKIP] Già presente: {sciopero.get('titolo')} – {sciopero.get('data_inizio', '')[:10]}")
-            saltati += 1
-        else:
-            if crea_evento_outlook(token, sciopero):
-                aggiunti += 1
-
-    print("-" * 55)
-    print(f"[FINE] Aggiunti: {aggiunti} | Già presenti (saltati): {saltati}")
+    print(f"[FINE] {OUTPUT_FILE} generato con {len(scioperi)} eventi")
     print("=" * 55)
 
 
