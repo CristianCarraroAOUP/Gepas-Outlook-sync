@@ -1,0 +1,40 @@
+name: GEPAS → Outlook Calendar Sync
+
+on:
+  # Esecuzione automatica ogni lunedì alle 07:00 ora italiana (06:00 UTC)
+  schedule:
+    - cron: "0 6 * * 1"
+
+  # Permette di lanciarlo manualmente dalla scheda "Actions" su GitHub
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Scarica il codice del repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Installa Python
+      - name: Imposta Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # 3. Installa le dipendenze Python
+      - name: Installa dipendenze
+        run: |
+          pip install playwright requests
+          playwright install chromium
+          playwright install-deps chromium
+
+      # 4. Esegui lo script principale
+      - name: Esegui sync GEPAS → Outlook
+        env:
+          MS_TENANT_ID:     ${{ secrets.MS_TENANT_ID }}
+          MS_CLIENT_ID:     ${{ secrets.MS_CLIENT_ID }}
+          MS_CLIENT_SECRET: ${{ secrets.MS_CLIENT_SECRET }}
+          MS_USER_EMAIL:    ${{ secrets.MS_USER_EMAIL }}
+        run: python scraper.py
