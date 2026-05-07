@@ -9,309 +9,321 @@ X-WR-CALDESC:Aggiornato automaticamente da https://crusc-gepas.perlapa.gov.it/ho
 REFRESH-INTERVAL;VALUE=DURATION:P1D
 X-PUBLISHED-TTL:P1D
 BEGIN:VEVENT
-UID:74778695-7886-4239-9237-c39f3113872a-20260529-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260529-20a03688-64b8-595b-b212-656a05e480ad-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260529
 DTEND;VALUE=DATE:20260530
 SUMMARY:Sciopero generale del 29 maggio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: ADL VARESE, CONFEDERAZIONE CUB, SGB, SI COBAS, USI-CIT\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:ae64d94f-f61f-4037-9ed9-083c3232a8c3-20260515-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260515-ebe04304-bf5e-5923-90d5-b36d45bb671b-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260515
 DTEND;VALUE=DATE:20260516
 SUMMARY:Sciopero Generale del 15 e 16 maggio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:ae64d94f-f61f-4037-9ed9-083c3232a8c3-20260516-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260516-d0384883-0259-585f-a762-7a030896a0c4-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260516
 DTEND;VALUE=DATE:20260517
 SUMMARY:Sciopero Generale del 15 e 16 maggio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:4c915b92-4a9f-4260-829d-64733df8fb34-20260507-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260507-5c35107b-4a2a-5e5e-9917-7679fea1ec71-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260507
 DTEND;VALUE=DATE:20260508
 SUMMARY:Sciopero del 7 maggio 2026 Personale Istituti Tecnici
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CUB SUR, FLC CGIL, SGB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:a7befd5c-9570-4d28-8cbc-1dbe391802c6-20260506-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260506-f68a36a4-9512-5955-a0f2-25d137bb56ed-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260506
 DTEND;VALUE=DATE:20260507
 SUMMARY:Sciopero del 6 e 7 maggio 2026 del personale della Scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: COBAS SCUOLA, COBAS SCUOLA SARDEGNA, USB PI\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:a7befd5c-9570-4d28-8cbc-1dbe391802c6-20260507-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260507-bc585c8e-4c16-524f-b61d-9c1905188385-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260507
 DTEND;VALUE=DATE:20260508
 SUMMARY:Sciopero del 6 e 7 maggio 2026 del personale della Scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: COBAS SCUOLA, COBAS SCUOLA SARDEGNA, USB PI\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:e9ef97db-1316-4b58-9ac7-09f6efceed92-20260506-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260506-5776b956-b54e-54e0-a224-4eb9e6b605cb-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260506
 DTEND;VALUE=DATE:20260507
 SUMMARY:Sciopero dal 6 maggio 2026  personale docente scuola primaria (INVALSI)
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CUB SUR, SGB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:09c4f3aa-3ed1-4e9c-b379-f587d1fced6f-20260501-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260501-48dee76b-118f-52c6-8dcb-d2352535ca45-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260501
 DTEND;VALUE=DATE:20260502
 SUMMARY:Sciopero Generale del 1° maggio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: USI-CIT\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:2bccf11c-3542-42b0-b347-35578a8a6346-20260423-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260423-215f2139-b780-5ea5-8b20-530792c5c976-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260423
 DTEND;VALUE=DATE:20260424
 SUMMARY:Sciopero Generale del  23 e 24 aprile 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:2bccf11c-3542-42b0-b347-35578a8a6346-20260424-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260424-43b3baa6-35de-5317-8404-01a6266fe3f0-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260424
 DTEND;VALUE=DATE:20260425
 SUMMARY:Sciopero Generale del  23 e 24 aprile 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:690475c0-4f08-406d-b2a3-e3fda614640b-20260420-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260420-ecb07104-40ec-5d0b-86fd-9055ff266efd-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260420
 DTEND;VALUE=DATE:20260421
 SUMMARY:Sciopero del 20 aprile 2026 del personale della Scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: SAESE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:b712a61b-f55d-42cf-ab89-e05b92b6996f-20260420-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260420-9d123e2e-9654-5d31-8234-0923a59aafb3-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260420
 DTEND;VALUE=DATE:20260421
 SUMMARY:Sciopero del 20 aprile 2026 del personale delle Scuole, della Ricerca e delle Università
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: UNICOBAS SCUOLA E UNIVERSITA'\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:9622586d-08e2-41bd-91b2-62e45fccc980-20260327-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260327-b5cea994-9109-55d1-b8ec-d845125f9aae-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260327
 DTEND;VALUE=DATE:20260328
 SUMMARY:Sciopero del 27 marzo 2026 del personale della Scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: SISA\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:1edd8022-68b5-40a3-80df-ca68b3dfe448-20260309-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260309-e2c8c5de-bff3-5766-b017-3a1e074f335e-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260309
 DTEND;VALUE=DATE:20260310
 SUMMARY:Sciopero Generale del 9 marzo 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CLAP - Camere del Lavoro Autonomo e
+Precario, CONFEDERAZIONE USB, SLAI COBAS PER IL SINDACATO DI CLASSE, USI FONDATA NEL 1912\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:66fe0c19-cf80-4ce9-8c52-c19b5097424c-20260309-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260309-84db2e9e-abc9-521a-925b-a113ec1187bd-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260309
 DTEND;VALUE=DATE:20260310
 SUMMARY:Sciopero del 9 marzo 2026 Istruzione e Ricerca
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: FLC CGIL\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:9d7bd653-f635-438f-b652-a30e95bcdd56-20260112-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260112-3b32966a-9856-5d2e-9660-2a645c08ae74-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260112
 DTEND;VALUE=DATE:20260113
 SUMMARY:Sciopero del 12 Gennaio e 13 Gennaio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:9d7bd653-f635-438f-b652-a30e95bcdd56-20260113-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20260113-5f70d43b-0c37-557e-a575-114375ad6749-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20260113
 DTEND;VALUE=DATE:20260114
 SUMMARY:Sciopero del 12 Gennaio e 13 Gennaio 2026
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:93a8604d-ef2b-41e9-8063-f602fca750f7-20251212-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251212-c29da533-030e-5a3f-b75e-7f28800783f5-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251212
 DTEND;VALUE=DATE:20251213
 SUMMARY:Sciopero generale del 12 dicembre 2025
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CGIL\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:105d1361-8370-4882-844a-e00d95563f9c-20251128-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251128-1fae5994-2e48-5cfa-8659-fe81f8bb4744-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251128
 DTEND;VALUE=DATE:20251129
 SUMMARY:Sciopero generale del 28 novembre 2025
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: ADL COBAS, CLAP, COBAS, CONFEDERAZIONE USB, CUB, FI-SI, FLAI TS, SIAL COBAS, USI, USI FONDATA NEL 1912, USI-CIT\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:4827728a-bd77-4972-8f48-94832f6cc1df-20251128-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251128-0a596494-23a8-589c-b5ac-db798f2277bc-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251128
 DTEND;VALUE=DATE:20251129
 SUMMARY:Sciopero del 28 novembre 2025 Comparto Scuola, Ricerca e Università
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: UNICOBAS SCUOLA E UNIVERSITA'\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:6d3ed6bb-85fc-44a1-bccc-335378997965-20251128-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251128-31ed6e7a-91be-5091-9163-044bbece3456-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251128
 DTEND;VALUE=DATE:20251129
 SUMMARY:Sciopero del 28 novembre 2025 Scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: COBAS SCUOLA SARDEGNA, SINDACATO SOCIALE DI BASE - SSB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:21f3b414-57a8-4aff-9fb1-4c4ac5489cd5-20251104-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251104-88946045-8aa1-5533-8bc4-1318857479f8-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251104
 DTEND;VALUE=DATE:20251105
 SUMMARY:SCIOPERO DEL 4 NOVEMBRE 2025 PERSONALE SCUOLA e UNIVERSITA'
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: OSSERVATORIO CONTRO MILITARIZZAZIONE SCUOLE E UNIVERSITA'\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:609f038c-b3bf-49a3-b422-f84d36cb3bac-20251104-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251104-2fc42b9c-5b30-5583-8889-b94e8cd4d578-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251104
 DTEND;VALUE=DATE:20251105
 SUMMARY:SCIOPERO DEL 4 NOVEMBRE 2025 PERSONALE SCUOLA
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: SISA\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:5b30300b-7008-47cd-b50a-225cced5d279-20251010-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251010-aa64cebc-4fcd-5b63-a8f9-9181d80b409c-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251010
 DTEND;VALUE=DATE:20251011
 SUMMARY:Sciopero del 10 ottobre 2025 del personale della scuola
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: SAESE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:5372b6d5-3ec7-4bc0-89c5-c33881c9cb1e-20251003-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251003-f9e05961-8391-5d26-b03b-af9450cc5e86-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251003
 DTEND;VALUE=DATE:20251004
 SUMMARY:SCIOPERO GENERALE DEL 3 OTTOBRE 2025 DI TUTTI I SETTORI PUBBLICI E PRIVATI
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CGIL, USB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:83f7f610-bd52-42cc-bc8b-b278ac87df2a-20251003-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251003-309d8e03-3334-50a9-ba39-c60758a99697-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20251003
 DTEND;VALUE=DATE:20251004
 SUMMARY:Sciopero generale del 3 ottobre 2025 di tutte le categorie pubbliche e private
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: SI COBAS\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:170b9154-fa65-425b-9f49-92ce8d9d77d2-20250922-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20251003-66fb3986-e90b-5ebf-9f51-9ede0818a120-gepas
+DTSTAMP:20260507T074023Z
+DTSTART;VALUE=DATE:20251003
+DTEND;VALUE=DATE:20251004
+SUMMARY:Sciopero generale del 3 ottobre 2025 di tutti i settori pubblici e privati
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: COBAS, CUB, SGB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+CATEGORIES:Sciopero
+STATUS:CONFIRMED
+TRANSP:TRANSPARENT
+END:VEVENT
+BEGIN:VEVENT
+UID:20250922-57cd94d5-ec74-5cb7-913b-ad01463f5009-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20250922
 DTEND;VALUE=DATE:20250923
 SUMMARY:Sciopero del 22.09.2025 proclamato da CO.NA.L.PE., C.S.L.E. e CONF.S.A.I.
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: CONALPE, CONF.S.A.I., CSLE\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
 END:VEVENT
 BEGIN:VEVENT
-UID:f8d5d69a-155e-41ff-b4a1-0f27fa3c2f02-20250922-gepas@scioperi
-DTSTAMP:20260507T072822Z
+UID:20250922-33a78430-c74e-58b8-b2a8-36ff105c86e3-gepas
+DTSTAMP:20260507T074023Z
 DTSTART;VALUE=DATE:20250922
 DTEND;VALUE=DATE:20250923
 SUMMARY:Sciopero generale del 22 settembre 2025 di tutte le categorie pubbliche e  private
-DESCRIPTION:Comparto: Istruzione e Ricerca\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
+DESCRIPTION:Comparto: Istruzione e Ricerca\nPROCLAMATO DA: USB\n\nFonte: https://crusc-gepas.perlapa.gov.it/home
 CATEGORIES:Sciopero
 STATUS:CONFIRMED
 TRANSP:TRANSPARENT
