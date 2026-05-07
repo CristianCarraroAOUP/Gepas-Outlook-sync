@@ -1,20 +1,20 @@
 """
 GEPAS → ICS Generator
-Usa il backend reale di GEPAS (asspa-api.perlapa.gov.it)
+Chiama direttamente il backend gepas-api.perlapa.gov.it
 per leggere gli scioperi "Istruzione e Ricerca" e generare un .ics.
 """
 
 import os
 import re
 import uuid
-import json
 import requests
 from datetime import datetime, timedelta
 
 OUTPUT_FILE     = "docs/scioperi.ics"
 GEPAS_URL       = "https://crusc-gepas.perlapa.gov.it/home"
 COMPARTO_TARGET = "istruzione e ricerca"
-BASE_API        = "https://asspa-api.perlapa.gov.it/api/Public"
+
+BASE_API = "https://gepas-api.perlapa.gov.it/api/Public/Scioperi/Pubblicati"
 
 HEADERS = {
     "Accept": "application/json, text/plain, */*",
@@ -25,235 +25,133 @@ HEADERS = {
 }
 
 
-# ── 1. SCOPRI ENDPOINT API ─────────────────────
-def scopri_endpoint():
-    """Prova i possibili endpoint del backend asspa-api."""
-    candidati = [
-        f"{BASE_API}/Sciopero",
-        f"{BASE_API}/Sciopero/Lista",
-        f"{BASE_API}/Sciopero/Search",
-        f"{BASE_API}/Scioperi",
-        f"{BASE_API}/Adempimento/Sciopero",
-        f"{BASE_API}/Adempimento/ListaScioperi",
-        f"{BASE_API}/Adempimento/Scioperi",
-        f"{BASE_API}/Proclamazione",
-        f"{BASE_API}/Proclamazione/Lista",
-        f"{BASE_API}/Adempimento/Lista",
-        f"{BASE_API}/Adempimento",
-        f"{BASE_API}/Cruscotto",
-        f"{BASE_API}/Cruscotto/Scioperi",
-        f"{BASE_API}/Cruscotto/Lista",
-    ]
+# ── 1. SCARICA TUTTI GLI SCIOPERI ─────────────
+def scarica_scioperi():
+    """Scarica tutti gli scioperi pubblicati paginando l'API."""
+    tutti = []
+    page = 1
 
-    # Prova prima a ottenere la lista delle "sigle" che sappiamo funziona
-    # per capire la struttura dell'API
-    print("[API] Analisi endpoint ListaSigle...")
-    try:
-        resp = requests.get(f"{BASE_API}/Adempimento/ListaSigle", headers=HEADERS, timeout=15)
-        print(f"[API] ListaSigle: {resp.status_code}")
-        if resp.status_code == 200:
+    while True:
+        params = {
+            "pageNumber": page,
+            "pageSize": 100,
+            "ScioperoDeiProssimi30Giorni": "false",
+            "OrderBy": "DataInizioSciopero",
+            "Ascending": "true",
+        }
+        url = BASE_API
+        print(f"[API] Pagina {page}: {url}")
+        try:
+            resp = requests.get(url, headers=HEADERS, params=params, timeout=20)
+            print(f"[API] Status: {resp.status_code}")
+            resp.raise_for_status()
             data = resp.json()
-            print(f"[API] Struttura ListaSigle: {json.dumps(data)[:300]}")
-    except Exception as e:
-        print(f"[API] Errore ListaSigle: {e}")
-
-    # Prova tutti i candidati
-    for url in candidati:
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            print(f"[API] {resp.status_code} – {url}")
-            if resp.status_code == 200:
-                ct = resp.headers.get("content-type", "")
-                if "json" in ct:
-                    data = resp.json()
-                    print(f"[API] ✅ JSON da {url}: {json.dumps(data)[:200]}")
-                    records = estrai_lista(data)
-                    if records:
-                        return filtra_istruzione(records)
+            print(f"[API] Risposta: {str(data)[:300]}")
         except Exception as e:
-            print(f"[API] Errore {url}: {e}")
+            print(f"[API] Errore: {e}")
+            break
 
-    return []
+        # Estrai lista records
+        records = []
+        if isinstance(data, list):
+            records = data
+        elif isinstance(data, dict):
+            for k in ["content", "data", "items", "results", "scioperi", "list", "rows"]:
+                if isinstance(data.get(k), list):
+                    records = data[k]
+                    break
 
+        if not records:
+            print(f"[API] Nessun record in pagina {page}, fine paginazione.")
+            break
 
-# ── 2. PLAYWRIGHT CON URL NOTI ─────────────────
-def prova_playwright():
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        print("[PW] Playwright non disponibile")
-        return []
+        print(f"[API] Pagina {page}: {len(records)} scioperi")
+        tutti.extend(records)
 
-    api_data = []
-    tutti_url = []
+        # Se la pagina è incompleta siamo all'ultima
+        if len(records) < 100:
+            break
+        page += 1
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=[
-            "--no-sandbox", "--disable-dev-shm-usage",
-        ])
-        context = browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            locale="it-IT",
-        )
-        page = context.new_page()
-
-        def handle_response(response):
-            url = response.url
-            tutti_url.append(f"{response.status} {url}")
-            if response.status != 200:
-                return
-            ct = response.headers.get("content-type", "")
-            if "json" not in ct:
-                return
-            skip = ["googleapis", "gstatic", "analytics", "matomo", "cookie",
-                    "i18n", "translation", "ListaSigle"]
-            if any(s in url for s in skip):
-                # Stampa comunque per debug
-                try:
-                    data = response.json()
-                    print(f"[PW] (skip) {url[:80]}: {json.dumps(data)[:150]}")
-                except Exception:
-                    pass
-                return
-            try:
-                data = response.json()
-                print(f"[PW] JSON da {url}: {json.dumps(data)[:200]}")
-                records = estrai_lista(data)
-                if records:
-                    api_data.extend(records)
-                elif isinstance(data, dict) and any(
-                    k in data for k in ["dataInizio", "data_inizio", "dataSciopero"]
-                ):
-                    api_data.append(data)
-            except Exception:
-                pass
-
-        page.on("response", handle_response)
-
-        print("[PW] Apertura GEPAS...")
-        try:
-            page.goto(GEPAS_URL, wait_until="networkidle", timeout=90000)
-        except Exception as e:
-            print(f"[PW] Timeout: {e}")
-
-        page.wait_for_timeout(8000)
-
-        # Tenta navigazione diretta alla sezione scioperi tramite URL hash
-        for path in ["#/scioperi", "#/istruzione", "?comparto=istruzione", "/scioperi"]:
-            try:
-                page.goto(f"https://crusc-gepas.perlapa.gov.it{path}",
-                          wait_until="networkidle", timeout=30000)
-                page.wait_for_timeout(4000)
-            except Exception:
-                pass
-
-        # Scrolla
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.wait_for_timeout(3000)
-
-        # Stampa tutti gli URL visti
-        print(f"[PW] Tutti gli URL intercettati ({len(tutti_url)}):")
-        for u in tutti_url:
-            if "asspa-api" in u or "gepas" in u.lower():
-                print(f"  {u}")
-
-        # Salva debug
-        os.makedirs("docs", exist_ok=True)
-        try:
-            page.screenshot(path="docs/debug_screenshot.png", full_page=True)
-            with open("docs/debug_page.html", "w", encoding="utf-8") as f:
-                f.write(page.content())
-
-            # Salva anche tutti gli URL per analisi
-            with open("docs/debug_urls.txt", "w", encoding="utf-8") as f:
-                f.write("\n".join(tutti_url))
-            print("[PW] Debug salvato")
-        except Exception as e:
-            print(f"[PW] Errore debug: {e}")
-
-        browser.close()
-
-    # Ora prova a chiamare direttamente tutti gli URL asspa-api trovati
-    asspa_urls = [u.split(" ", 1)[1] for u in tutti_url
-                  if "asspa-api" in u and u.startswith("200")]
-    print(f"[PW] URL asspa-api con 200: {asspa_urls}")
-
-    for url in asspa_urls:
-        if "ListaSigle" in url:
-            continue
-        try:
-            resp = requests.get(url, headers=HEADERS, timeout=15)
-            if resp.status_code == 200 and "json" in resp.headers.get("content-type", ""):
-                data = resp.json()
-                print(f"[PW→API] Dati da {url}: {json.dumps(data)[:300]}")
-                records = estrai_lista(data)
-                if records:
-                    api_data.extend(records)
-        except Exception as e:
-            print(f"[PW→API] Errore {url}: {e}")
-
-    return filtra_istruzione(api_data) if api_data else []
+    print(f"[API] Totale scioperi scaricati: {len(tutti)}")
+    return tutti
 
 
-# ── 3. UTILITIES ───────────────────────────────
-def estrai_lista(data):
-    if isinstance(data, list) and data:
-        return data
-    if isinstance(data, dict):
-        for k in ["content", "data", "items", "results", "scioperi",
-                  "proclamazioni", "list", "rows", "elementi"]:
-            v = data.get(k)
-            if isinstance(v, list) and v:
-                return v
-    return []
-
-
+# ── 2. FILTRA PER ISTRUZIONE E RICERCA ────────
 def filtra_istruzione(records):
     risultati = []
     for item in records:
-        testo = json.dumps(item, ensure_ascii=False).lower()
+        # Cerca il comparto in tutti i possibili campi
         comparto = str(
-            item.get("comparto") or item.get("compartoArea") or
-            item.get("settore") or item.get("area") or
-            item.get("compartoDescrizione") or ""
+            item.get("comparto") or
+            item.get("compartoArea") or
+            item.get("settore") or
+            item.get("area") or
+            item.get("compartoDescrizione") or
+            item.get("tipoComparto") or
+            item.get("comparti") or ""
         ).lower()
-        if COMPARTO_TARGET in comparto or COMPARTO_TARGET in testo:
+
+        # Cerca anche nella descrizione
+        descrizione = str(item.get("denominazioneSciopero") or item.get("descrizione") or "").lower()
+
+        if COMPARTO_TARGET in comparto or COMPARTO_TARGET in descrizione:
             s = parse_item(item)
             if s:
                 risultati.append(s)
+                print(f"[FILTRO] ✅ Trovato: {s['titolo']} – {s['data_inizio']}")
+
     return risultati
 
 
 def parse_item(item):
     try:
+        # Cerca date in tutti i possibili campi
         data_inizio = normalizza_data(
-            item.get("dataInizio") or item.get("data_inizio") or
-            item.get("dataSciopero") or item.get("data") or
-            item.get("startDate") or item.get("dataProclamazione") or ""
+            item.get("dataInizioSciopero") or
+            item.get("dataInizio") or
+            item.get("data_inizio") or
+            item.get("dataSciopero") or
+            item.get("data") or
+            item.get("startDate") or ""
         )
         data_fine = normalizza_data(
-            item.get("dataFine") or item.get("data_fine") or
-            item.get("dataFineSciopero") or item.get("endDate") or data_inizio
+            item.get("dataFineSciopero") or
+            item.get("dataFine") or
+            item.get("data_fine") or
+            item.get("endDate") or
+            data_inizio
         )
         if not data_inizio:
             return None
 
         sindacato = (
-            item.get("organizzazione") or item.get("sindacato") or
-            item.get("organizzazioni") or item.get("soggettoProclamante") or ""
+            item.get("organizzazione") or
+            item.get("sindacato") or
+            item.get("soggettoProclamante") or
+            item.get("organizzazioni") or
+            item.get("sigle") or ""
         )
         if isinstance(sindacato, list):
             sindacato = ", ".join(
-                str(x.get("nome", x) if isinstance(x, dict) else x) for x in sindacato
+                str(x.get("sigla") or x.get("nome") or x.get("denominazione") or x)
+                if isinstance(x, dict) else str(x)
+                for x in sindacato
             )
+
+        titolo = (
+            item.get("denominazioneSciopero") or
+            item.get("descrizione") or
+            item.get("titolo") or
+            "Sciopero – Istruzione e Ricerca"
+        )
 
         return {
             "uid":         str(item.get("id") or item.get("uid") or uuid.uuid4()),
-            "titolo":      item.get("descrizione") or item.get("titolo") or "Sciopero Istruzione e Ricerca",
+            "titolo":      titolo,
             "data_inizio": data_inizio,
             "data_fine":   data_fine,
             "sindacato":   str(sindacato),
-            "comparto":    "Istruzione e Ricerca",
             "note":        str(item.get("note") or item.get("motivazione") or ""),
         }
     except Exception as e:
@@ -265,19 +163,22 @@ def normalizza_data(valore):
     if not valore:
         return ""
     valore = str(valore).strip()
+    # ISO: 2026-05-06 o 2026-05-06T00:00:00
     m = re.match(r"(\d{4})-(\d{2})-(\d{2})", valore)
     if m:
         return f"{m.group(1)}{m.group(2)}{m.group(3)}"
+    # Italiano: 06/05/2026
     m = re.match(r"(\d{2})[/\-](\d{2})[/\-](\d{4})", valore)
     if m:
         return f"{m.group(3)}{m.group(2)}{m.group(1)}"
+    # Timestamp ms
     if re.match(r"^\d{13}$", valore):
         dt = datetime.utcfromtimestamp(int(valore) / 1000)
         return dt.strftime("%Y%m%d")
     return ""
 
 
-# ── 4. GENERA ICS ──────────────────────────────
+# ── 3. GENERA ICS ──────────────────────────────
 def genera_ics(scioperi):
     ora = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     lines = [
@@ -334,29 +235,30 @@ def genera_ics(scioperi):
     return "\r\n".join(lines)
 
 
-# ── 5. MAIN ────────────────────────────────────
+# ── 4. MAIN ────────────────────────────────────
 def main():
     print("=" * 55)
     print("  GEPAS → ICS Generator")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 55)
 
-    scioperi = []
+    # Scarica tutti gli scioperi dal backend reale
+    tutti_scioperi = scarica_scioperi()
 
-    # Strategia 1: endpoint asspa-api diretti
-    scioperi = scopri_endpoint()
-    if scioperi:
-        print(f"[OK] {len(scioperi)} scioperi via API dirette")
-
-    # Strategia 2: Playwright
-    if not scioperi:
-        print("[INFO] Avvio Playwright...")
-        scioperi = prova_playwright()
-        print(f"[OK] {len(scioperi)} scioperi via Playwright")
+    # Filtra solo "Istruzione e Ricerca"
+    scioperi = filtra_istruzione(tutti_scioperi)
+    print(f"[OK] Scioperi Istruzione e Ricerca: {len(scioperi)}")
 
     if not scioperi:
-        print("[WARN] Nessuno sciopero trovato.")
-        print("[INFO] Guarda docs/debug_urls.txt per vedere tutti gli URL intercettati")
+        print("[WARN] Nessuno sciopero trovato per Istruzione e Ricerca.")
+        # Stampa i comparti disponibili per debug
+        comparti = set()
+        for item in tutti_scioperi[:20]:
+            c = (item.get("comparto") or item.get("compartoArea") or
+                 item.get("settore") or item.get("area") or "?")
+            comparti.add(str(c).lower())
+        if comparti:
+            print(f"[DEBUG] Comparti disponibili nei primi 20 record: {comparti}")
 
     os.makedirs("docs", exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
