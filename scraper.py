@@ -2,15 +2,15 @@
 GEPAS → ICS Generator
 Chiama direttamente gepas-api.perlapa.gov.it,
 filtra gli scioperi con descrizioneComparto="ISTRUZIONE RICERCA".
-- Deduplicazione per titolo + data
-- Se stesso titolo e stessa data, unisce i sindacati nella descrizione
+- Un evento per ogni sciopero (nessuna deduplicazione)
+- Oggetto: [STATO] Titolo
+- Descrizione: PROCLAMATO DA, COMPARTI PA, SOGGETTI COINVOLTI, SINDACATI ADERENTI
 """
 
 import os
 import uuid
 import requests
 from datetime import datetime, timedelta, timezone
-from collections import defaultdict
 
 OUTPUT_FILE = "docs/scioperi.ics"
 GEPAS_URL   = "https://crusc-gepas.perlapa.gov.it/home"
@@ -67,16 +67,9 @@ def scarica_scioperi():
     return tutti
 
 
-# ── 2. FILTRA E AGGREGA ───────────────────────
+# ── 2. FILTRA E PARSE ─────────────────────────
 def filtra_e_parse(records):
-    """
-    Chiave di aggregazione: (titolo, data)
-    Per ogni chiave unica, accumula i sindacati proclamanti.
-    """
-    # (titolo, data) → set di sindacati
-    aggregati = defaultdict(set)
-    # mantieni ordine di inserimento
-    ordine = []
+    eventi = []
 
     for item in records:
         titolo = (
@@ -85,39 +78,70 @@ def filtra_e_parse(records):
             "Sciopero – Istruzione e Ricerca"
         ).replace("\n", " ").replace("\r", " ").strip()
 
-        for ds in item.get("dateSciopero", []):
-            trovato = any(
-                FILTRO in str(c.get("descrizioneComparto", "")).lower()
-                for c in ds.get("compartiCoinvolti", [])
-            )
-            if not trovato:
+        # Stato sciopero (es. "pubblicato", "revocato", ecc.)
+        stato_raw = ""
+        stato_obj = item.get("statoSciopero")
+        if isinstance(stato_obj, dict):
+            stato_raw = str(stato_obj.get("descrizione") or "").strip()
+        elif isinstance(stato_obj, str):
+            stato_raw = stato_obj.strip()
+        stato = stato_raw.upper() if stato_raw else ""
+
+        item_id = str(item.get("id") or uuid.uuid4())
+
+        for idx, ds in enumerate(item.get("dateSciopero", [])):
+            # Controlla se questa data coinvolge ISTRUZIONE RICERCA
+            comparti_istruzione = [
+                c for c in ds.get("compartiCoinvolti", [])
+                if FILTRO in str(c.get("descrizioneComparto", "")).lower()
+            ]
+            if not comparti_istruzione:
                 continue
 
             data_inizio = timestamp_ms_to_date(ds.get("data", ""))
             if not data_inizio:
                 continue
 
-            chiave = (titolo, data_inizio)
-            if chiave not in aggregati:
-                ordine.append(chiave)
+            # PROCLAMATO DA
+            proclamato = ds.get("sigleSindacaliCheIndicono", [])
+            proclamato_str = ", ".join(str(x).strip() for x in proclamato) if proclamato else ""
 
-            # Aggiungi i sindacati proclamanti
-            sindacati = ds.get("sigleSindacaliCheIndicono", [])
-            for s in sindacati:
-                aggregati[chiave].add(str(s).strip())
+            # SINDACATI ADERENTI
+            aderenti = ds.get("sigleSindacaliChePartecipano", [])
+            aderenti_str = ", ".join(str(x).strip() for x in aderenti) if aderenti else ""
 
-    # Costruisce lista eventi
-    eventi = []
-    for chiave in ordine:
-        titolo, data_inizio = chiave
-        sindacati = sorted(aggregati[chiave])
-        print(f"[OK] {data_inizio} – {titolo[:50]} | {', '.join(sindacati)}")
-        eventi.append({
-            "uid":         f"{data_inizio}-{uuid.uuid5(uuid.NAMESPACE_DNS, titolo + data_inizio)}-gepas",
-            "titolo":      titolo,
-            "data_inizio": data_inizio,
-            "sindacati":   sindacati,
-        })
+            # COMPARTI PA (solo quelli istruzione ricerca)
+            comparti_str = ", ".join(
+                str(c.get("descrizioneComparto", "")).strip()
+                for c in comparti_istruzione
+            )
+
+            # SOGGETTI COINVOLTI
+            soggetti_str = str(ds.get("soggettiCoinvolti", "")).strip()
+            if not soggetti_str:
+                # Prendi dalle qualifiche del comparto istruzione
+                qualifiche = []
+                for c in comparti_istruzione:
+                    for q in c.get("qualifiche", []):
+                        desc = str(q.get("descrizione", "")).strip()
+                        if desc and desc not in qualifiche:
+                            qualifiche.append(desc)
+                soggetti_str = ", ".join(qualifiche)
+
+            # Oggetto: [STATO] Titolo
+            oggetto = f"[{stato}] {titolo}" if stato else titolo
+
+            print(f"[OK] {data_inizio} – {oggetto[:70]}")
+
+            eventi.append({
+                "uid":          f"{item_id}-{idx}-gepas@scioperi",
+                "oggetto":      oggetto,
+                "data_inizio":  data_inizio,
+                "proclamato":   proclamato_str,
+                "comparti":     comparti_str,
+                "soggetti":     soggetti_str,
+                "aderenti":     aderenti_str,
+            })
 
     return eventi
 
@@ -156,11 +180,18 @@ def genera_ics(eventi):
         except Exception:
             data_fine = data_inizio
 
-        sindacati = e.get("sindacati", [])
-        descrizione = "Comparto: Istruzione e Ricerca"
-        if sindacati:
-            descrizione += f"\\nPROCLAMATO DA: {', '.join(sindacati)}"
-        descrizione += f"\\n\\nFonte: {GEPAS_URL}"
+        # Costruisce descrizione
+        desc_parts = []
+        if e.get("proclamato"):
+            desc_parts.append(f"PROCLAMATO DA: {e['proclamato']}")
+        if e.get("comparti"):
+            desc_parts.append(f"COMPARTI PA: {e['comparti']}")
+        if e.get("soggetti"):
+            desc_parts.append(f"SOGGETTI COINVOLTI: {e['soggetti']}")
+        if e.get("aderenti"):
+            desc_parts.append(f"SINDACATI ADERENTI: {e['aderenti']}")
+        desc_parts.append(f"Fonte: {GEPAS_URL}")
+        descrizione = "\\n".join(desc_parts)
 
         lines += [
             "BEGIN:VEVENT",
@@ -168,7 +199,7 @@ def genera_ics(eventi):
             f"DTSTAMP:{ora}",
             f"DTSTART;VALUE=DATE:{data_inizio}",
             f"DTEND;VALUE=DATE:{data_fine}",
-            f"SUMMARY:{e['titolo']}",
+            f"SUMMARY:{e['oggetto']}",
             f"DESCRIPTION:{descrizione}",
             "CATEGORIES:Sciopero",
             "STATUS:CONFIRMED",
@@ -189,7 +220,7 @@ def main():
 
     tutti  = scarica_scioperi()
     eventi = filtra_e_parse(tutti)
-    print(f"[OK] Eventi unici 'ISTRUZIONE RICERCA': {len(eventi)}")
+    print(f"[OK] Totale eventi 'ISTRUZIONE RICERCA': {len(eventi)}")
 
     os.makedirs("docs", exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
