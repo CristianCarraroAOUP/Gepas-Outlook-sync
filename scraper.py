@@ -1,20 +1,20 @@
 """
 GEPAS → ICS Generator
 Chiama direttamente gepas-api.perlapa.gov.it,
-filtra gli scioperi con compartoId=121 / descrizioneComparto="ISTRUZIONE RICERCA"
+filtra gli scioperi con descrizioneComparto="ISTRUZIONE RICERCA"
 e genera un file .ics per Outlook.
+- Descrizione semplificata (solo comparto e fonte)
+- Deduplicazione per titolo + data
 """
 
 import os
-import re
 import uuid
-import json
 import requests
 from datetime import datetime, timedelta, timezone
 
 OUTPUT_FILE = "docs/scioperi.ics"
 GEPAS_URL   = "https://crusc-gepas.perlapa.gov.it/home"
-FILTRO      = "istruzione ricerca"   # case-insensitive, esatto
+FILTRO      = "istruzione ricerca"
 
 BASE_API = "https://gepas-api.perlapa.gov.it/api/Public/Scioperi/Pubblicati"
 
@@ -67,78 +67,49 @@ def scarica_scioperi():
     return tutti
 
 
-# ── 2. CONTROLLA SE UN RECORD RIGUARDA ISTRUZIONE RICERCA ──
-def contiene_istruzione_ricerca(item):
-    """
-    Cerca 'ISTRUZIONE RICERCA' dentro dateSciopero → compartiCoinvolti → descrizioneComparto.
-    Restituisce le dateSciopero che contengono il comparto cercato.
-    """
-    date_trovate = []
-    for data_sciopero in item.get("dateSciopero", []):
-        for comparto in data_sciopero.get("compartiCoinvolti", []):
-            desc = str(comparto.get("descrizioneComparto", "")).lower()
-            if FILTRO in desc:
-                date_trovate.append(data_sciopero)
-                break  # basta trovarlo una volta per questa data
-    return date_trovate
-
-
-# ── 3. FILTRA E GENERA EVENTI ─────────────────
+# ── 2. FILTRA E DEDUPLICA ─────────────────────
 def filtra_e_parse(records):
     eventi = []
+    chiavi_viste = set()  # per deduplicazione: (titolo_normalizzato, data)
+
     for item in records:
-        date_istruzione = contiene_istruzione_ricerca(item)
-        if not date_istruzione:
-            continue
+        # Cerca dateSciopero che coinvolgono ISTRUZIONE RICERCA
+        for ds in item.get("dateSciopero", []):
+            trovato = any(
+                FILTRO in str(c.get("descrizioneComparto", "")).lower()
+                for c in ds.get("compartiCoinvolti", [])
+            )
+            if not trovato:
+                continue
 
-        titolo = (
-            item.get("denominazioneSciopero") or
-            item.get("descrizione") or
-            "Sciopero – Istruzione e Ricerca"
-        )
-        print(f"[FILTRO] ✅ {titolo[:70]}")
-
-        # Un evento per ogni data dello sciopero che coinvolge Istruzione Ricerca
-        for ds in date_istruzione:
             data_inizio = timestamp_ms_to_date(ds.get("data", ""))
             if not data_inizio:
                 continue
 
-            # PROCLAMATO DA: sigleSindacaliCheIndicono
-            proclamato = ds.get("sigleSindacaliCheIndicono", [])
-            if isinstance(proclamato, list):
-                proclamato_str = ", ".join(str(x) for x in proclamato)
-            else:
-                proclamato_str = str(proclamato)
+            titolo = (
+                item.get("denominazioneSciopero") or
+                item.get("descrizione") or
+                "Sciopero – Istruzione e Ricerca"
+            ).replace("\n", " ").replace("\r", " ").strip()
 
-            # SOGGETTI COINVOLTI: soggettiCoinvolti del record specifico
-            soggetti_str = str(ds.get("soggettiCoinvolti", ""))
+            # Chiave di deduplicazione: titolo normalizzato + data
+            chiave = (titolo.lower(), data_inizio)
+            if chiave in chiavi_viste:
+                print(f"[SKIP] Duplicato: {data_inizio} – {titolo[:60]}")
+                continue
+            chiavi_viste.add(chiave)
 
-            # Cerca anche soggetti specifici per comparto Istruzione Ricerca
-            for comparto in ds.get("compartiCoinvolti", []):
-                desc = str(comparto.get("descrizioneComparto", "")).lower()
-                if FILTRO in desc:
-                    qualifiche = comparto.get("qualifiche", [])
-                    if qualifiche and not soggetti_str:
-                        soggetti_str = ", ".join(
-                            str(q.get("descrizione", "")) for q in qualifiche
-                        )
-                    break
-
+            print(f"[OK] {data_inizio} – {titolo[:60]}")
             eventi.append({
-                "uid":           str(item.get("id") or uuid.uuid4()),
-                "titolo":        titolo,
-                "data_inizio":   data_inizio,
-                "data_fine":     data_inizio,  # stessa giornata
-                "proclamato_da": proclamato_str,
-                "soggetti":      soggetti_str,
+                "uid":         str(item.get("id") or uuid.uuid4()),
+                "titolo":      titolo,
+                "data_inizio": data_inizio,
             })
 
     return eventi
 
 
 def timestamp_ms_to_date(valore):
-    """Converte timestamp in millisecondi (es. 1780012800000) in YYYYMMDD."""
     if not valore:
         return ""
     try:
@@ -149,7 +120,7 @@ def timestamp_ms_to_date(valore):
         return ""
 
 
-# ── 4. GENERA ICS ──────────────────────────────
+# ── 3. GENERA ICS ──────────────────────────────
 def genera_ics(eventi):
     ora = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     lines = [
@@ -168,24 +139,9 @@ def genera_ics(eventi):
     for e in eventi:
         data_inizio = e["data_inizio"]
         try:
-            data_fine = (
-                datetime.strptime(data_inizio, "%Y%m%d") + timedelta(days=1)
-            ).strftime("%Y%m%d")
+            data_fine = (datetime.strptime(data_inizio, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
         except Exception:
             data_fine = data_inizio
-
-        proclamato_da = (e.get("proclamato_da") or "").strip()
-        soggetti      = (e.get("soggetti") or "").strip()
-
-        descrizione = "Comparto: Istruzione e Ricerca"
-        if proclamato_da:
-            descrizione += f"\\nPROCLAMATO DA: {proclamato_da}"
-        if soggetti:
-            descrizione += f"\\nSOGGETTI COINVOLTI: {soggetti}"
-        descrizione += f"\\n\\nFonte: {GEPAS_URL}"
-
-        # Sanifica il titolo (rimuove newline)
-        titolo = e["titolo"].replace("\n", " ").replace("\r", " ")
 
         lines += [
             "BEGIN:VEVENT",
@@ -193,8 +149,8 @@ def genera_ics(eventi):
             f"DTSTAMP:{ora}",
             f"DTSTART;VALUE=DATE:{data_inizio}",
             f"DTEND;VALUE=DATE:{data_fine}",
-            f"SUMMARY:{titolo}",
-            f"DESCRIPTION:{descrizione}",
+            f"SUMMARY:{e['titolo']}",
+            f"DESCRIPTION:Comparto: Istruzione e Ricerca\\n\\nFonte: {GEPAS_URL}",
             "CATEGORIES:Sciopero",
             "STATUS:CONFIRMED",
             "TRANSP:TRANSPARENT",
@@ -205,7 +161,7 @@ def genera_ics(eventi):
     return "\r\n".join(lines)
 
 
-# ── 5. MAIN ────────────────────────────────────
+# ── 4. MAIN ────────────────────────────────────
 def main():
     print("=" * 55)
     print("  GEPAS → ICS Generator")
@@ -214,7 +170,7 @@ def main():
 
     tutti  = scarica_scioperi()
     eventi = filtra_e_parse(tutti)
-    print(f"[OK] Eventi 'ISTRUZIONE RICERCA': {len(eventi)}")
+    print(f"[OK] Eventi unici 'ISTRUZIONE RICERCA': {len(eventi)}")
 
     os.makedirs("docs", exist_ok=True)
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
