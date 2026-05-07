@@ -1,8 +1,7 @@
 """
-GEPAS → ICS Generator
-Chiama direttamente gepas-api.perlapa.gov.it,
-filtra gli scioperi con comparto "ISTRUZIONE RICERCA"
-e genera un file .ics per Outlook.
+GEPAS → ICS Generator - modalità DEBUG
+Stampa la struttura completa dei primi 3 record per trovare
+dove si trova la stringa "ISTRUZIONE RICERCA".
 """
 
 import os
@@ -14,7 +13,7 @@ from datetime import datetime, timedelta
 
 OUTPUT_FILE = "docs/scioperi.ics"
 GEPAS_URL   = "https://crusc-gepas.perlapa.gov.it/home"
-FILTRO      = "istruzione ricerca"   # ricerca esatta (case-insensitive)
+FILTRO      = "istruzione ricerca"
 
 BASE_API = "https://gepas-api.perlapa.gov.it/api/Public/Scioperi/Pubblicati"
 
@@ -27,11 +26,9 @@ HEADERS = {
 }
 
 
-# ── 1. SCARICA TUTTI GLI SCIOPERI ─────────────
 def scarica_scioperi():
     tutti = []
     page  = 1
-
     while True:
         params = {
             "pageNumber": page,
@@ -50,15 +47,6 @@ def scarica_scioperi():
             print(f"[API] Errore: {e}")
             break
 
-        # Debug: struttura primo record
-        if page == 1:
-            campione = data if isinstance(data, list) else next(
-                (data[k] for k in ["content","data","items","results","scioperi","list","rows"]
-                 if isinstance(data.get(k), list)), []
-            )
-            if campione:
-                print(f"[DEBUG] Primo record:\n{json.dumps(campione[0], ensure_ascii=False, indent=2)[:1000]}")
-
         records = []
         if isinstance(data, list):
             records = data
@@ -69,54 +57,55 @@ def scarica_scioperi():
                     break
 
         if not records:
-            print(f"[API] Fine paginazione a pagina {page}.")
             break
 
-        print(f"[API] Pagina {page}: {len(records)} record")
-        tutti.extend(records)
+        # Stampa i primi 3 record completi per debug
+        if page == 1:
+            print("\n" + "="*60)
+            print("DEBUG: STRUTTURA COMPLETA PRIMI 3 RECORD")
+            print("="*60)
+            for i, r in enumerate(records[:3]):
+                print(f"\n--- RECORD {i+1} ---")
+                print(json.dumps(r, ensure_ascii=False, indent=2))
+            print("="*60 + "\n")
 
+            # Cerca la stringa "istruzione" in ogni record e mostra dove la trova
+            print("DEBUG: RICERCA 'istruzione' NEI RECORD:")
+            trovati = 0
+            for i, r in enumerate(records):
+                testo = json.dumps(r, ensure_ascii=False).lower()
+                if "istruzione" in testo:
+                    trovati += 1
+                    print(f"  Record {i+1} CONTIENE 'istruzione': {r.get('denominazioneSciopero','')[:80]}")
+                    # Trova esattamente in quale chiave
+                    for k, v in r.items():
+                        if "istruzione" in json.dumps(v, ensure_ascii=False).lower():
+                            print(f"    → campo '{k}': {json.dumps(v, ensure_ascii=False)[:150]}")
+            print(f"  Totale record con 'istruzione' in pagina 1: {trovati}/{len(records)}")
+
+        tutti.extend(records)
         if len(records) < 100:
             break
         page += 1
 
-    print(f"[API] Totale record scaricati: {len(tutti)}")
+    print(f"[API] Totale record: {len(tutti)}")
     return tutti
 
 
-# ── 2. FILTRA "ISTRUZIONE RICERCA" ────────────
 def filtra_istruzione(records):
-    """
-    Cerca la frase esatta 'istruzione ricerca' (case-insensitive)
-    in tutti i campi stringa del record JSON.
-    Stampa anche i comparti unici trovati per debug.
-    """
-    risultati    = []
-    comparti_log = set()
-
+    risultati = []
     for item in records:
-        # Raccoglie i valori dei campi comparto per debug
-        for campo in ["comparto","compartoArea","settore","area",
-                      "compartoDescrizione","tipoComparto","comparti","compartoPA"]:
-            v = item.get(campo)
-            if v:
-                comparti_log.add(str(v))
-
-        # Cerca la frase esatta nel JSON completo
         testo = json.dumps(item, ensure_ascii=False).lower()
         if FILTRO in testo:
             s = parse_item(item)
             if s:
                 risultati.append(s)
                 print(f"[FILTRO] ✅ {s['data_inizio']} – {s['titolo'][:60]}")
-
-    print(f"[DEBUG] Valori campo comparto trovati: {comparti_log}")
     return risultati
 
 
-# ── 3. PARSING RECORD ─────────────────────────
 def parse_item(item):
     try:
-        # Date
         data_inizio = normalizza_data(
             item.get("dataInizioSciopero") or item.get("dataInizio") or
             item.get("data_inizio") or item.get("dataSciopero") or
@@ -129,19 +118,12 @@ def parse_item(item):
         if not data_inizio:
             return None
 
-        # Titolo (oggetto calendario)
         titolo = (
-            item.get("denominazioneSciopero") or
-            item.get("descrizione") or
-            item.get("titolo") or
-            "Sciopero – Istruzione e Ricerca"
+            item.get("denominazioneSciopero") or item.get("descrizione") or
+            item.get("titolo") or "Sciopero – Istruzione e Ricerca"
         )
-
-        # PROCLAMATO DA
         proclamato_da = estrai_proclamato_da(item)
-
-        # SOGGETTI COINVOLTI
-        soggetti = estrai_soggetti(item)
+        soggetti      = estrai_soggetti(item)
 
         return {
             "uid":           str(item.get("id") or item.get("uid") or uuid.uuid4()),
@@ -157,23 +139,14 @@ def parse_item(item):
 
 
 def estrai_proclamato_da(item):
-    """Estrae chi ha proclamato lo sciopero."""
-    candidati = [
-        item.get("organizzazione"),
-        item.get("sindacato"),
-        item.get("soggettoProclamante"),
-        item.get("proclamatoDa"),
-        item.get("sigle"),
-        item.get("organizzazioni"),
-    ]
-    for c in candidati:
+    for campo in ["organizzazione","sindacato","soggettoProclamante","proclamatoDa","sigle","organizzazioni"]:
+        c = item.get(campo)
         if not c:
             continue
         if isinstance(c, list):
             return ", ".join(
                 str(x.get("sigla") or x.get("nome") or x.get("denominazione") or x)
-                if isinstance(x, dict) else str(x)
-                for x in c
+                if isinstance(x, dict) else str(x) for x in c
             )
         if isinstance(c, dict):
             return str(c.get("nome") or c.get("denominazione") or c.get("sigla") or c)
@@ -182,23 +155,14 @@ def estrai_proclamato_da(item):
 
 
 def estrai_soggetti(item):
-    """Estrae i soggetti coinvolti nello sciopero."""
-    candidati = [
-        item.get("soggettiCoinvolti"),
-        item.get("soggetti"),
-        item.get("categoriaPersonale"),
-        item.get("personale"),
-        item.get("lavoratoriCoinvolti"),
-        item.get("destinatari"),
-    ]
-    for c in candidati:
+    for campo in ["soggettiCoinvolti","soggetti","categoriaPersonale","personale","lavoratoriCoinvolti","destinatari"]:
+        c = item.get(campo)
         if not c:
             continue
         if isinstance(c, list):
             return ", ".join(
                 str(x.get("nome") or x.get("descrizione") or x.get("categoria") or x)
-                if isinstance(x, dict) else str(x)
-                for x in c
+                if isinstance(x, dict) else str(x) for x in c
             )
         if isinstance(c, dict):
             return str(c.get("nome") or c.get("descrizione") or c)
@@ -222,7 +186,6 @@ def normalizza_data(valore):
     return ""
 
 
-# ── 4. GENERA ICS ──────────────────────────────
 def genera_ics(scioperi):
     ora = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
     lines = [
@@ -237,25 +200,17 @@ def genera_ics(scioperi):
         "REFRESH-INTERVAL;VALUE=DURATION:P1D",
         "X-PUBLISHED-TTL:P1D",
     ]
-
     for s in scioperi:
         data_inizio   = s["data_inizio"]
         data_fine_raw = s.get("data_fine") or data_inizio
         try:
-            data_fine_ics = (
-                datetime.strptime(data_fine_raw, "%Y%m%d") + timedelta(days=1)
-            ).strftime("%Y%m%d")
+            data_fine_ics = (datetime.strptime(data_fine_raw, "%Y%m%d") + timedelta(days=1)).strftime("%Y%m%d")
         except Exception:
             data_fine_ics = data_inizio
 
         proclamato_da = (s.get("proclamato_da") or "").strip()
         soggetti      = (s.get("soggetti") or "").strip()
-
-        # Oggetto = titolo dello sciopero
-        soggetto = s["titolo"]
-
-        # Descrizione con sezioni
-        descrizione = f"Comparto: Istruzione e Ricerca"
+        descrizione   = "Comparto: Istruzione e Ricerca"
         if proclamato_da:
             descrizione += f"\\nPROCLAMATO DA: {proclamato_da}"
         if soggetti:
@@ -268,22 +223,20 @@ def genera_ics(scioperi):
             f"DTSTAMP:{ora}",
             f"DTSTART;VALUE=DATE:{data_inizio}",
             f"DTEND;VALUE=DATE:{data_fine_ics}",
-            f"SUMMARY:{soggetto}",
+            f"SUMMARY:{s['titolo']}",
             f"DESCRIPTION:{descrizione}",
             "CATEGORIES:Sciopero",
             "STATUS:CONFIRMED",
             "TRANSP:TRANSPARENT",
             "END:VEVENT",
         ]
-
     lines.append("END:VCALENDAR")
     return "\r\n".join(lines)
 
 
-# ── 5. MAIN ────────────────────────────────────
 def main():
     print("=" * 55)
-    print("  GEPAS → ICS Generator")
+    print("  GEPAS → ICS Generator [DEBUG]")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 55)
 
