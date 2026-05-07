@@ -1,16 +1,16 @@
 """
 GEPAS → ICS Generator
 Chiama direttamente gepas-api.perlapa.gov.it,
-filtra gli scioperi con descrizioneComparto="ISTRUZIONE RICERCA"
-e genera un file .ics per Outlook.
-- Descrizione semplificata (solo comparto e fonte)
+filtra gli scioperi con descrizioneComparto="ISTRUZIONE RICERCA".
 - Deduplicazione per titolo + data
+- Se stesso titolo e stessa data, unisce i sindacati nella descrizione
 """
 
 import os
 import uuid
 import requests
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 
 OUTPUT_FILE = "docs/scioperi.ics"
 GEPAS_URL   = "https://crusc-gepas.perlapa.gov.it/home"
@@ -67,13 +67,24 @@ def scarica_scioperi():
     return tutti
 
 
-# ── 2. FILTRA E DEDUPLICA ─────────────────────
+# ── 2. FILTRA E AGGREGA ───────────────────────
 def filtra_e_parse(records):
-    eventi = []
-    chiavi_viste = set()  # per deduplicazione: (titolo_normalizzato, data)
+    """
+    Chiave di aggregazione: (titolo, data)
+    Per ogni chiave unica, accumula i sindacati proclamanti.
+    """
+    # (titolo, data) → set di sindacati
+    aggregati = defaultdict(set)
+    # mantieni ordine di inserimento
+    ordine = []
 
     for item in records:
-        # Cerca dateSciopero che coinvolgono ISTRUZIONE RICERCA
+        titolo = (
+            item.get("denominazioneSciopero") or
+            item.get("descrizione") or
+            "Sciopero – Istruzione e Ricerca"
+        ).replace("\n", " ").replace("\r", " ").strip()
+
         for ds in item.get("dateSciopero", []):
             trovato = any(
                 FILTRO in str(c.get("descrizioneComparto", "")).lower()
@@ -86,25 +97,27 @@ def filtra_e_parse(records):
             if not data_inizio:
                 continue
 
-            titolo = (
-                item.get("denominazioneSciopero") or
-                item.get("descrizione") or
-                "Sciopero – Istruzione e Ricerca"
-            ).replace("\n", " ").replace("\r", " ").strip()
+            chiave = (titolo, data_inizio)
+            if chiave not in aggregati:
+                ordine.append(chiave)
 
-            # Chiave di deduplicazione: titolo normalizzato + data
-            chiave = (titolo.lower(), data_inizio)
-            if chiave in chiavi_viste:
-                print(f"[SKIP] Duplicato: {data_inizio} – {titolo[:60]}")
-                continue
-            chiavi_viste.add(chiave)
+            # Aggiungi i sindacati proclamanti
+            sindacati = ds.get("sigleSindacaliCheIndicono", [])
+            for s in sindacati:
+                aggregati[chiave].add(str(s).strip())
 
-            print(f"[OK] {data_inizio} – {titolo[:60]}")
-            eventi.append({
-                "uid":         str(item.get("id") or uuid.uuid4()),
-                "titolo":      titolo,
-                "data_inizio": data_inizio,
-            })
+    # Costruisce lista eventi
+    eventi = []
+    for chiave in ordine:
+        titolo, data_inizio = chiave
+        sindacati = sorted(aggregati[chiave])
+        print(f"[OK] {data_inizio} – {titolo[:50]} | {', '.join(sindacati)}")
+        eventi.append({
+            "uid":         f"{data_inizio}-{uuid.uuid5(uuid.NAMESPACE_DNS, titolo + data_inizio)}-gepas",
+            "titolo":      titolo,
+            "data_inizio": data_inizio,
+            "sindacati":   sindacati,
+        })
 
     return eventi
 
@@ -143,14 +156,20 @@ def genera_ics(eventi):
         except Exception:
             data_fine = data_inizio
 
+        sindacati = e.get("sindacati", [])
+        descrizione = "Comparto: Istruzione e Ricerca"
+        if sindacati:
+            descrizione += f"\\nPROCLAMATO DA: {', '.join(sindacati)}"
+        descrizione += f"\\n\\nFonte: {GEPAS_URL}"
+
         lines += [
             "BEGIN:VEVENT",
-            f"UID:{e['uid']}-{data_inizio}-gepas@scioperi",
+            f"UID:{e['uid']}",
             f"DTSTAMP:{ora}",
             f"DTSTART;VALUE=DATE:{data_inizio}",
             f"DTEND;VALUE=DATE:{data_fine}",
             f"SUMMARY:{e['titolo']}",
-            f"DESCRIPTION:Comparto: Istruzione e Ricerca\\n\\nFonte: {GEPAS_URL}",
+            f"DESCRIPTION:{descrizione}",
             "CATEGORIES:Sciopero",
             "STATUS:CONFIRMED",
             "TRANSP:TRANSPARENT",
