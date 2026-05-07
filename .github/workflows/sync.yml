@@ -1,35 +1,36 @@
 name: GEPAS → Genera calendario ICS
- 
+
 on:
+  # Ogni giorno alle 07:00 ora italiana (06:00 UTC)
   schedule:
-    - cron: "0 6 * * 1"
+    - cron: "0 6 * * *"
   workflow_dispatch:
- 
+
 permissions:
   contents: write
- 
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
- 
+
 jobs:
   genera-ics:
     runs-on: ubuntu-latest
- 
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
- 
+
       - name: Imposta Python
         uses: actions/setup-python@v5.6.0
         with:
           python-version: "3.11"
- 
+
       - name: Installa dipendenze
         run: pip install requests
- 
+
       - name: Esegui scraper e genera ICS
         run: python scraper.py
- 
+
       - name: Pubblica file su GitHub Pages
         run: |
           git config user.name  "github-actions[bot]"
