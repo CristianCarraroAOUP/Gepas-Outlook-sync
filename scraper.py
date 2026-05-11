@@ -1,12 +1,3 @@
-"""
-GEPAS -> ICS Generator
-Chiama direttamente gepas-api.perlapa.gov.it,
-filtra gli scioperi con descrizioneComparto="ISTRUZIONE RICERCA".
-- Un evento per ogni sciopero
-- Oggetto: [STATO] Titolo
-- Descrizione: PROCLAMATO DA, COMPARTI PA, SOGGETTI COINVOLTI, SINDACATI ADERENTI
-"""
-
 import os
 import uuid
 import requests
@@ -15,8 +6,7 @@ from datetime import datetime, timedelta, timezone
 OUTPUT_FILE = "docs/scioperi.ics"
 GEPAS_URL   = "https://crusc-gepas.perlapa.gov.it/home"
 FILTRO      = "istruzione ricerca"
-
-BASE_API = "https://gepas-api.perlapa.gov.it/api/Public/Scioperi/Pubblicati"
+BASE_API    = "https://gepas-api.perlapa.gov.it/api/Public/Scioperi/Pubblicati"
 
 HEADERS = {
     "Accept": "application/json, text/plain, */*",
@@ -27,23 +17,23 @@ HEADERS = {
 }
 
 
-def scarica_scioperi():
+def scarica_pagine(prossimi30=False):
     tutti = []
     page  = 1
     while True:
         params = {
             "pageNumber": page,
-            "pageSize":   100,
-            "OrderBy":    "DataInizioSciopero",
-            "Ascending":  "true",
+            "pageSize": 100,
+            "ScioperoDeiProssimi30Giorni": "true" if prossimi30 else "false",
+            "OrderBy": "DataInizioSciopero",
+            "Ascending": "true",
         }
-        print("[API] Pagina " + str(page) + "...")
         try:
             resp = requests.get(BASE_API, headers=HEADERS, params=params, timeout=20)
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
-            print("[API] Errore: " + str(e))
+            print("[API] Errore (prossimi30=" + str(prossimi30) + "): " + str(e))
             break
 
         records = data if isinstance(data, list) else next(
@@ -54,14 +44,29 @@ def scarica_scioperi():
         if not records:
             break
 
-        print("[API] Pagina " + str(page) + ": " + str(len(records)) + " record")
+        print("[API] prossimi30=" + str(prossimi30) + " pagina " + str(page) + ": " + str(len(records)) + " record")
         tutti.extend(records)
 
         if len(records) < 100:
             break
         page += 1
 
-    print("[API] Totale record scaricati: " + str(len(tutti)))
+    return tutti
+
+
+def scarica_scioperi():
+    # Chiamata 1: tutti gli scioperi (non filtrati per prossimi 30 gg)
+    tutti = scarica_pagine(prossimi30=False)
+    ids_visti = {str(r.get("id", "")) for r in tutti}
+
+    # Chiamata 2: scioperi prossimi 30 giorni (potrebbero includere futuri non nella prima)
+    prossimi = scarica_pagine(prossimi30=True)
+    for r in prossimi:
+        if str(r.get("id", "")) not in ids_visti:
+            tutti.append(r)
+            ids_visti.add(str(r.get("id", "")))
+
+    print("[API] Totale record unici: " + str(len(tutti)))
     return tutti
 
 
