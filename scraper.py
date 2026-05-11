@@ -1,9 +1,9 @@
 “””
-GEPAS → ICS Generator
+GEPAS -> ICS Generator
 Chiama direttamente gepas-api.perlapa.gov.it,
 filtra gli scioperi con descrizioneComparto=“ISTRUZIONE RICERCA”.
 
-- Un evento per ogni sciopero (nessuna deduplicazione)
+- Un evento per ogni sciopero
 - Oggetto: [STATO] Titolo
 - Descrizione: PROCLAMATO DA, COMPARTI PA, SOGGETTI COINVOLTI, SINDACATI ADERENTI
   “””
@@ -27,8 +27,6 @@ HEADERS = {
 “Origin”: “https://crusc-gepas.perlapa.gov.it”,
 }
 
-# ── 1. SCARICA TUTTI GLI SCIOPERI ─────────────
-
 def scarica_scioperi():
 tutti = []
 page  = 1
@@ -36,40 +34,37 @@ while True:
 params = {
 “pageNumber”: page,
 “pageSize”:   100,
-// rimosso filtro 30 giorni
 “OrderBy”:    “DataInizioSciopero”,
 “Ascending”:  “true”,
 }
-print(f”[API] Pagina {page}…”)
+print(”[API] Pagina “ + str(page) + “…”)
 try:
 resp = requests.get(BASE_API, headers=HEADERS, params=params, timeout=20)
 resp.raise_for_status()
 data = resp.json()
 except Exception as e:
-print(f”[API] Errore: {e}”)
+print(”[API] Errore: “ + str(e))
 break
 
 ```
     records = data if isinstance(data, list) else next(
-        (data[k] for k in ["content","data","items","results","scioperi","list","rows"]
+        (data[k] for k in ["content", "data", "items", "results", "scioperi", "list", "rows"]
          if isinstance(data.get(k), list)), []
     )
 
     if not records:
         break
 
-    print(f"[API] Pagina {page}: {len(records)} record")
+    print("[API] Pagina " + str(page) + ": " + str(len(records)) + " record")
     tutti.extend(records)
 
     if len(records) < 100:
         break
     page += 1
 
-print(f"[API] Totale record scaricati: {len(tutti)}")
+print("[API] Totale record scaricati: " + str(len(tutti)))
 return tutti
 ```
-
-# ── 2. FILTRA E PARSE ─────────────────────────
 
 def filtra_e_parse(records):
 eventi = []
@@ -79,10 +74,9 @@ for item in records:
     titolo = (
         item.get("denominazioneSciopero") or
         item.get("descrizione") or
-        "Sciopero – Istruzione e Ricerca"
+        "Sciopero - Istruzione e Ricerca"
     ).replace("\n", " ").replace("\r", " ").strip()
 
-    # Stato sciopero (es. "pubblicato", "revocato", ecc.)
     stato_raw = ""
     stato_obj = item.get("statoSciopero")
     if isinstance(stato_obj, dict):
@@ -94,7 +88,6 @@ for item in records:
     item_id = str(item.get("id") or uuid.uuid4())
 
     for idx, ds in enumerate(item.get("dateSciopero", [])):
-        # Controlla se questa data coinvolge ISTRUZIONE RICERCA
         comparti_istruzione = [
             c for c in ds.get("compartiCoinvolti", [])
             if FILTRO in str(c.get("descrizioneComparto", "")).lower()
@@ -106,24 +99,19 @@ for item in records:
         if not data_inizio:
             continue
 
-        # PROCLAMATO DA
         proclamato = ds.get("sigleSindacaliCheIndicono", [])
         proclamato_str = ", ".join(str(x).strip() for x in proclamato) if proclamato else ""
 
-        # SINDACATI ADERENTI
         aderenti = ds.get("sigleSindacaliChePartecipano", [])
         aderenti_str = ", ".join(str(x).strip() for x in aderenti) if aderenti else ""
 
-        # COMPARTI PA (solo quelli istruzione ricerca)
         comparti_str = ", ".join(
             str(c.get("descrizioneComparto", "")).strip()
             for c in comparti_istruzione
         )
 
-        # SOGGETTI COINVOLTI
         soggetti_str = str(ds.get("soggettiCoinvolti", "")).strip()
         if not soggetti_str:
-            # Prendi dalle qualifiche del comparto istruzione
             qualifiche = []
             for c in comparti_istruzione:
                 for q in c.get("qualifiche", []):
@@ -132,19 +120,18 @@ for item in records:
                         qualifiche.append(desc)
             soggetti_str = ", ".join(qualifiche)
 
-        # Oggetto: [STATO] Titolo
-        oggetto = f"[{stato}] {titolo}" if stato else titolo
+        oggetto = ("[" + stato + "] " + titolo) if stato else titolo
 
-        print(f"[OK] {data_inizio} – {oggetto[:70]}")
+        print("[OK] " + data_inizio + " - " + oggetto[:70])
 
         eventi.append({
-            "uid":          f"{item_id}-{idx}-gepas@scioperi",
-            "oggetto":      oggetto,
-            "data_inizio":  data_inizio,
-            "proclamato":   proclamato_str,
-            "comparti":     comparti_str,
-            "soggetti":     soggetti_str,
-            "aderenti":     aderenti_str,
+            "uid":         item_id + "-" + str(idx) + "-gepas@scioperi",
+            "oggetto":     oggetto,
+            "data_inizio": data_inizio,
+            "proclamato":  proclamato_str,
+            "comparti":    comparti_str,
+            "soggetti":    soggetti_str,
+            "aderenti":    aderenti_str,
         })
 
 return eventi
@@ -160,8 +147,6 @@ return dt.strftime(”%Y%m%d”)
 except Exception:
 return “”
 
-# ── 3. GENERA ICS ──────────────────────────────
-
 def genera_ics(eventi):
 ora = datetime.utcnow().strftime(”%Y%m%dT%H%M%SZ”)
 lines = [
@@ -172,7 +157,7 @@ lines = [
 “METHOD:PUBLISH”,
 “X-WR-CALNAME:Scioperi - Istruzione e Ricerca”,
 “X-WR-TIMEZONE:Europe/Rome”,
-f”X-WR-CALDESC:Aggiornato automaticamente da {GEPAS_URL}”,
+“X-WR-CALDESC:Aggiornato automaticamente da “ + GEPAS_URL,
 “REFRESH-INTERVAL;VALUE=DURATION:P1D”,
 “X-PUBLISHED-TTL:P1D”,
 ]
@@ -185,27 +170,26 @@ for e in eventi:
     except Exception:
         data_fine = data_inizio
 
-    # Costruisce descrizione
     desc_parts = []
     if e.get("proclamato"):
-        desc_parts.append(f"PROCLAMATO DA: {e['proclamato']}")
+        desc_parts.append("PROCLAMATO DA: " + e["proclamato"])
     if e.get("comparti"):
-        desc_parts.append(f"COMPARTI PA: {e['comparti']}")
+        desc_parts.append("COMPARTI PA: " + e["comparti"])
     if e.get("soggetti"):
-        desc_parts.append(f"SOGGETTI COINVOLTI: {e['soggetti']}")
+        desc_parts.append("SOGGETTI COINVOLTI: " + e["soggetti"])
     if e.get("aderenti"):
-        desc_parts.append(f"SINDACATI ADERENTI: {e['aderenti']}")
-    desc_parts.append(f"Fonte: {GEPAS_URL}")
+        desc_parts.append("SINDACATI ADERENTI: " + e["aderenti"])
+    desc_parts.append("Fonte: " + GEPAS_URL)
     descrizione = "\\n".join(desc_parts)
 
     lines += [
         "BEGIN:VEVENT",
-        f"UID:{e['uid']}",
-        f"DTSTAMP:{ora}",
-        f"DTSTART;VALUE=DATE:{data_inizio}",
-        f"DTEND;VALUE=DATE:{data_fine}",
-        f"SUMMARY:{e['oggetto']}",
-        f"DESCRIPTION:{descrizione}",
+        "UID:" + e["uid"],
+        "DTSTAMP:" + ora,
+        "DTSTART;VALUE=DATE:" + data_inizio,
+        "DTEND;VALUE=DATE:" + data_fine,
+        "SUMMARY:" + e["oggetto"],
+        "DESCRIPTION:" + descrizione,
         "CATEGORIES:Sciopero",
         "STATUS:CONFIRMED",
         "TRANSP:TRANSPARENT",
@@ -216,24 +200,22 @@ lines.append("END:VCALENDAR")
 return "\r\n".join(lines)
 ```
 
-# ── 4. MAIN ────────────────────────────────────
-
 def main():
 print(”=” * 55)
-print(”  GEPAS → ICS Generator”)
-print(f”  {datetime.now().strftime(’%Y-%m-%d %H:%M:%S’)}”)
+print(”  GEPAS -> ICS Generator”)
+print(”  “ + datetime.now().strftime(”%Y-%m-%d %H:%M:%S”))
 print(”=” * 55)
 
 ```
 tutti  = scarica_scioperi()
 eventi = filtra_e_parse(tutti)
-print(f"[OK] Totale eventi 'ISTRUZIONE RICERCA': {len(eventi)}")
+print("[OK] Totale eventi ISTRUZIONE RICERCA: " + str(len(eventi)))
 
 os.makedirs("docs", exist_ok=True)
 with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
     f.write(genera_ics(eventi))
 
-print(f"[FINE] {OUTPUT_FILE} generato con {len(eventi)} eventi")
+print("[FINE] " + OUTPUT_FILE + " generato con " + str(len(eventi)) + " eventi")
 print("=" * 55)
 ```
 
